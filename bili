@@ -19,12 +19,22 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 BASE = os.path.expanduser("~/.config/bili-sub")
 COOKIE_FILE = os.path.join(BASE, "cookie")
 CONFIG_FILE = os.path.join(BASE, "config.json")
-DEFAULT_OUT = os.path.expanduser("~/Downloads/B站字幕")
+DEFAULT_OUT = os.path.expanduser("~/Desktop/B站字幕")
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 PREF = ["zh-CN", "zh-Hans", "zh-Hant", "zh-HK", "zh-TW", "ai-zh"]
 RETRY = 2
 VERSION = "v%04d%02d%02d" % (datetime.now().year, datetime.now().month, datetime.now().day)
+
+
+def pretty(path):
+    """把 /Users/某人/... 缩成 ~/...，打印时不暴露本机用户名。"""
+    home = os.path.expanduser("~")
+    if path == home:
+        return "~"
+    if path.startswith(home + os.sep):
+        return "~" + path[len(home):]
+    return path
 
 
 def die(msg, code=1):
@@ -95,8 +105,9 @@ def usage():
     print(f"""bili-sub {VERSION} —— B 站字幕下载器（只下字幕，不下视频）
 
   bili <链接> [链接...]      下载这些视频的字幕（BV号、av号、完整网址都行）
-  bili <列表.txt>            直接丢一个 .txt 进来，里面每行一个链接，批量下
-                             （也可以写成 bili -f <列表.txt>，# 开头是注释）
+  bili 清单.txt              批量：文件里每行一个链接，# 开头是注释
+                             链接和 .txt 可以混着写，也可以一次给好几个 .txt
+                             （完整写法是 bili -f 清单.txt，两种都行）
   bili -p <N> <链接>         只下第 N 个分P（不写就下全部分P）
   bili -o "<目录>" <链接>    这次下载换个地方存，不改永久设置
   bili setout "<绝对路径>"   永久设置字幕存哪儿（要绝对路径，用双引号括起来）
@@ -109,7 +120,7 @@ def usage():
   <标题>.<语言>.txt         给人读、给 AI 读用（带 UP 主、链接、发布时间等元数据）
 
 存放规则：<输出目录>/<UP主名>/<标题>.<语言>.srt
-默认输出目录：{DEFAULT_OUT}
+当前输出目录：{pretty(load_config()["out"])}    （用 bili setout 改）
 """, end="")
 
 
@@ -364,19 +375,19 @@ def do_status():
             print(f"登录状态：⚠️ 连不上 B 站，判断不了（{e}）\n")
 
     out = load_config()["out"]
-    print(f"输出目录：{out}")
-    print(f"          所有字幕都进这里，每个 UP 主一个子文件夹，例如 {out}/小白debug/")
+    print(f"输出目录：{pretty(out)}")
+    print(f"          所有字幕都进这里，每个 UP 主一个子文件夹，例如 {pretty(out)}/<UP主名>/")
     print(f"          每个视频两个文件：<标题>.<语言>.srt 和 <标题>.<语言>.txt\n")
 
     print("卸载（删掉这三处就干净了）：")
-    print(f"  1. rm -r {BASE}")
+    print(f"  1. rm -r {pretty(BASE)}")
     print("       ← cookie 和输出目录设置，就这两个文件")
     cmd = shutil.which("bili") or os.path.realpath(sys.argv[0])
-    print(f"  2. rm {cmd}")
+    print(f"  2. rm {pretty(cmd)}")
     print("       ← 命令本身（软链删了不影响别处）；拿不准就敲 which bili")
-    print(f"  3. rm -r {HERE}")
+    print(f"  3. rm -r {pretty(HERE)}")
     print("       ← 源码目录")
-    print(f"  字幕文件在 {out} 里，那是你自己下的，删不删随你。")
+    print(f"  字幕文件在 {pretty(out)} 里，那是你自己下的，删不删随你。")
     print("\n本工具运行时只写 .srt 和 .txt 字幕文件，不留日志、不留缓存。")
     return 0 if logged or not ck else 1
 
@@ -418,7 +429,7 @@ def do_setcookie():
 def do_setout(argv):
     cfg = load_config()
     if not argv:
-        print(f"当前输出目录：{cfg['out']}")
+        print(f"当前输出目录：{pretty(cfg['out'])}")
         print('改的话：bili setout "/绝对/路径/字幕"')
         return 0
     raw = " ".join(argv).strip().strip('"').strip("'")
@@ -442,8 +453,8 @@ def do_setout(argv):
         return 1
     cfg["out"] = path
     save_config(cfg)
-    print(f"✅ 输出目录已设为：{path}")
-    print(f"   以后的字幕存到：{path}/<UP主>/<标题>.<语言>.srt")
+    print(f"✅ 输出目录已设为：{pretty(path)}")
+    print(f"   以后的字幕存到：{pretty(path)}/<UP主>/<标题>.<语言>.srt")
     return 0
 
 
@@ -549,7 +560,7 @@ def run(argv):
             ok += 1
 
     print(f"==== 完成：{ok} 个视频，{fail} 个没拿到 ====")
-    print(f"==== 位置：{out} ====")
+    print(f"==== 位置：{pretty(out)} ====")
     return 0 if fail == 0 else 1
 
 

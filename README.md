@@ -21,11 +21,37 @@
 
 ## 安装
 
+**方式一：下载一个文件（最省事）**
+
+去 Releases 下载 `bili`，然后：
+
+```bash
+chmod +x ~/Downloads/bili
+sudo mv ~/Downloads/bili /usr/local/bin/bili
+```
+
+**方式二：跑安装脚本（会自己找可写的 PATH 目录）**
+
+```bash
+git clone <本仓库地址> ~/code/bili-sub && cd ~/code/bili-sub
+./install.sh
+```
+
+或者不看源码直接装（心里没底就别用这条）：
+
+```bash
+curl -fsSL <本仓库地址>/raw/main/install.sh | bash
+```
+
+**方式三：手动，想放哪儿放哪儿**
+
 ```bash
 git clone <本仓库地址> ~/code/bili-sub
 chmod +x ~/code/bili-sub/bili
-ln -sf ~/code/bili-sub/bili /usr/local/bin/bili   # 或者任何在 PATH 里的目录
+ln -sf ~/code/bili-sub/bili /usr/local/bin/bili
 ```
+
+装完敲 `bili help` 验证。`install.sh` 会把本体拷到 `~/.local/share/bili-sub/`，再在 PATH 里放一个软链。
 
 ## 命令
 
@@ -46,7 +72,7 @@ ln -sf ~/code/bili-sub/bili /usr/local/bin/bili   # 或者任何在 PATH 里的�
 ## 输出
 
 ```
-~/Downloads/B站字幕/                  ← 总目录，可以用 bili setout 改
+~/Desktop/B站字幕/                    ← 默认总目录，可以用 bili setout 改
 └── 小白debug/                        ← 一个 UP 主一个文件夹
     ├── 视频标题.ai-zh.srt            ← 给播放器、剪辑软件
     └── 视频标题.ai-zh.txt            ← 给人读、给 AI 读
@@ -57,7 +83,7 @@ ln -sf ~/code/bili-sub/bili /usr/local/bin/bili   # 或者任何在 PATH 里的�
 ```
 # 视频标题
 
-- UP 主：小白debug
+- UP 主：某个 UP 主
 - 链接：https://www.bilibili.com/video/BV1xxxxxxxxx
 - 发布时间：2026-11-06 09:30
 - 视频时长：07:49
