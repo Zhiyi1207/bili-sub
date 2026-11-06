@@ -1,25 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""bili-sub —— 只做 B 站字幕的下载器，零第三方依赖，单文件。
+"""bili-sub —— 只做 B 站字幕的下载器。零第三方依赖，单文件。
 
-用法见: bili --help
+命令见: bili help
 """
 
 import json
 import os
+import shutil
 import re
 import sys
 import time
-import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime
 
-CONF = os.path.expanduser("~/.config/bili-sub/cookie")
-OUT = os.path.join(os.path.expanduser("~/Downloads"), "B站字幕")
+HERE = os.path.dirname(os.path.realpath(__file__))
+BASE = os.path.expanduser("~/.config/bili-sub")
+COOKIE_FILE = os.path.join(BASE, "cookie")
+CONFIG_FILE = os.path.join(BASE, "config.json")
+DEFAULT_OUT = os.path.expanduser("~/Downloads/B站字幕")
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 PREF = ["zh-CN", "zh-Hans", "zh-Hant", "zh-HK", "zh-TW", "ai-zh"]
 RETRY = 2
+VERSION = "v%d%d%d" % (datetime.now().year, datetime.now().month, datetime.now().day)
 
 
 def die(msg, code=1):
@@ -27,13 +32,44 @@ def die(msg, code=1):
     sys.exit(code)
 
 
+# ---------- 配置 ----------
+
 def cookie():
     try:
-        with open(CONF, encoding="utf-8") as f:
+        with open(COOKIE_FILE, encoding="utf-8") as f:
             return f.read().strip() or None
     except OSError:
         return None
 
+
+def load_config():
+    try:
+        with open(CONFIG_FILE, encoding="utf-8") as f:
+            out = json.load(f).get("out")
+        if isinstance(out, str) and os.path.isabs(out):
+            return {"out": out}
+    except (OSError, ValueError):
+        pass
+    return {"out": DEFAULT_OUT}
+
+
+def save_config(cfg):
+    os.makedirs(BASE, exist_ok=True)
+    tmp = CONFIG_FILE + ".part"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+        os.replace(tmp, CONFIG_FILE)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+
+
+# ---------- 网络 ----------
 
 def http_json(url, retries=RETRY):
     hdrs = {"User-Agent": UA, "Referer": "https://www.bilibili.com"}
@@ -46,35 +82,40 @@ def http_json(url, retries=RETRY):
             req = urllib.request.Request(url, headers=hdrs)
             with urllib.request.urlopen(req, timeout=20) as r:
                 return json.loads(r.read().decode("utf-8", "replace"))
-        except Exception as e:          # 网络抖动、超时、返回不是 JSON
+        except Exception as e:
             err = e
             if attempt < retries:
                 time.sleep(0.8)
-    raise RuntimeError(f"请求失败（已重试 {retries} 次）：{err}")
+    raise RuntimeError(f"请求失败（重试 {retries} 次）：{err}")
 
 
-# ---------- 参数解析 ----------
+# ---------- 帮助 ----------
 
 def usage():
-    print("""bili —— B 站字幕下载器（只下字幕，不下载视频）
+    print(f"""bili-sub {VERSION} —— B 站字幕下载器（只下字幕，不下视频）
 
-用法:
-  bili 链接 [链接...]        下载这些视频的字幕
-  bili -f 列表.txt           从文件批量读链接（每行一个，# 开头为注释）
-  bili status                查看 cookie 是否有效
-  bili setcookie             设置/覆盖 cookie
-  bili -h                    看这份帮助
+  bili <链接> [链接...]      下载这些视频的字幕（BV号、av号、完整网址都行）
+  bili -f "<列表.txt>"       从文件里批量下载，每行一个链接，# 开头的是注释
+  bili -p <N> <链接>         只下第 N 个分P（不写就下全部分P）
+  bili -o "<目录>" <链接>    这次下载换个地方存，不改永久设置
+  bili setout "<绝对路径>"   永久设置字幕存哪儿（要绝对路径，用双引号括起来）
+  bili status                看登录状态、版本号、字幕存哪儿、怎么卸载
+  bili setcookie             设置或覆盖登录用的 cookie
+  bili help                  显示这份帮助
 
-选项:
-  -o 目录      输出根目录，默认 ~/Downloads/B站字幕
-  -p N         只下载第 N 个分P，默认全部
+每个视频会生成两个文件：
+  <标题>.<语言>.srt         给播放器、剪辑软件用（带时间轴）
+  <标题>.<语言>.txt         给人读、给 AI 读用（带 UP 主、链接、发布时间等元数据）
 
-字幕存放在 输出目录/UP主名/视频标题.<语言>.srt
+存放规则：<输出目录>/<UP主名>/<标题>.<语言>.srt
+默认输出目录：{DEFAULT_OUT}
 """, end="")
 
 
+# ---------- 参数 ----------
+
 def parse(argv):
-    urls, listfile, out, psel = [], None, OUT, None
+    urls, listfile, out, psel = [], None, None, None
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -93,11 +134,8 @@ def parse(argv):
                 die("❌ -p 后面要跟分P序号")
             psel = argv[i + 1]
             i += 2
-        elif a in ("-h", "--help", "help"):
-            usage()
-            sys.exit(0)
         elif a.startswith("-"):
-            die(f"❌ 不认识的选项: {a}")
+            die(f"❌ 不认识的选项: {a}（敲 bili help 看全部用法）")
         else:
             urls.append(a)
             i += 1
@@ -107,14 +145,12 @@ def parse(argv):
         with open(listfile, encoding="utf-8", errors="replace") as f:
             for line in f:
                 line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                urls.append(line)
+                if line and not line.startswith("#"):
+                    urls.append(line)
     return urls, out, psel
 
 
 def targets(arg):
-    """从链接或裸编号里认出 bvid / aid。"""
     m = re.search(r"(BV[0-9A-Za-z]{10})", arg)
     if m:
         return {"bvid": m.group(1)}
@@ -136,8 +172,10 @@ def video(idpair):
     v = d["data"]
     return {
         "aid": v["aid"],
+        "bvid": v.get("bvid"),
         "title": v["title"],
         "up": v["owner"]["name"],
+        "pubdate": v.get("pubdate") or 0,
         "duration": v.get("duration") or 0,
         "pages": v["pages"],
     }
@@ -169,11 +207,10 @@ def body_of(sub):
         u = "https:" + u
     if not u:
         raise RuntimeError("字幕地址是空的")
-    d = http_json(u)
-    return d.get("body") or []
+    return http_json(u).get("body") or []
 
 
-# ---------- 校验与写盘 ----------
+# ---------- 时间与校验 ----------
 
 def ts(t):
     ms = int(round(float(t) * 1000))
@@ -188,12 +225,15 @@ def proc_ts(t):
     return f"{t // 60:02d}:{t % 60:02d}"
 
 
-def check(body, duration):
-    """返回 (级别, 说明)，级别 None 表示没问题。
+def clock(sec):
+    sec = int(sec)
+    if sec >= 3600:
+        return f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}"
+    return f"{sec // 60:02d}:{sec % 60:02d}"
 
-    容忍度随视频长度放大：短视频允许比片长短 20 秒，长视频允许短 5%。
-    差得更多就判为被截断——那不是片尾没人说话，是内容缺了一截。
-    """
+
+def check(body, duration):
+    """返回 (级别, 说明)；级别 None 表示没问题。"""
     if not body:
         return "fail", "一条字幕都没有"
     try:
@@ -212,6 +252,8 @@ def check(body, duration):
     return None, None
 
 
+# ---------- 生成两种格式 ----------
+
 def to_srt(body):
     blocks = []
     for i, x in enumerate(body, 1):
@@ -219,6 +261,51 @@ def to_srt(body):
         blocks.append(f"{i}\n{ts(x.get('from', 0))} --> {ts(x.get('to', 0))}\n{text}\n")
     return "\n".join(blocks)
 
+
+def _join(a, b):
+    if a and b and a[-1].isascii() and a[-1].isalnum() and b[0].isascii() and b[0].isalnum():
+        return a + " " + b
+    return a + b
+
+
+def to_txt(body, meta):
+    """纯文本：开头写元数据（给 AI 认人、认出处），正文按停顿合并成段落。"""
+    paras, cur, prev_end = [], "", None
+    PARA_MAX = 200          # AI 字幕常常整段没有标点，只能按长度断段
+    for x in body:
+        text = str(x.get("content", "")).replace("\r", " ").strip()
+        if not text:
+            continue
+        f, to = float(x.get("from", 0)), float(x.get("to", 0))
+        if cur and prev_end is not None and f - prev_end > 1.2:
+            paras.append(cur)
+            cur = ""
+        cur = _join(cur, text)
+        prev_end = to
+        if len(cur) >= PARA_MAX or text[-1:] in "。！？…":
+            paras.append(cur)
+            cur = ""
+    if cur:
+        paras.append(cur)
+
+    head = [
+        f"# {meta['title']}",
+        "",
+        f"- UP 主：{meta['up']}",
+        f"- 链接：{meta['url']}",
+        f"- 发布时间：{meta['pub']}",
+        f"- 视频时长：{meta['dur']}",
+        f"- 字幕类型：{meta['kind']}（{meta['lan']}），共 {len(body)} 条",
+        f"- 导出时间：{datetime.now():%Y-%m-%d %H:%M}",
+        f"- 工具：bili-sub {VERSION}",
+        "",
+        "## 字幕正文",
+        "",
+    ]
+    return "\n".join(head) + "\n\n".join(paras) + "\n"
+
+
+# ---------- 落盘 ----------
 
 BAD = re.compile(r'[\\/:*?"<>|\r\n\t]')
 
@@ -230,37 +317,63 @@ def clean(name, limit=80):
 
 
 def save(path, text):
-    folder = os.path.dirname(path)
-    os.makedirs(folder, exist_ok=True)
+    """先写 .part 再改名；失败时把 .part 清掉，不在磁盘上留垃圾。"""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".part"
-    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-        f.write(text)
-    os.replace(tmp, path)
+    try:
+        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
 
 
-# ---------- 两个子命令 ----------
+# ---------- 子命令 ----------
 
 def do_status():
-    if not cookie():
-        print(f"❌ 还没设置 cookie。运行: bili setcookie")
-        print(f"   （文件位置: {CONF}）")
-        return 1
-    try:
-        d = http_json("https://api.bilibili.com/x/web-interface/nav")
-    except Exception as e:
-        print(f"⚠️  连不上 B 站接口，无法判断：{e}")
-        return 2
-    if (d.get("data") or {}).get("isLogin"):
-        print(f"✅ cookie 有效，账号：{d['data'].get('uname') or '未知'}")
-        return 0
-    print("❌ cookie 已失效（过期、退出登录或改了密码）。重新运行: bili setcookie")
-    return 1
+    print(f"bili-sub {VERSION}\n")
+    ck = cookie()
+    logged = False
+    if not ck:
+        print("登录状态：❌ 还没设置 cookie（只影响原字幕和受限视频）")
+        print("            运行 bili setcookie 设置\n")
+    else:
+        try:
+            d = http_json("https://api.bilibili.com/x/web-interface/nav")
+            if (d.get("data") or {}).get("isLogin"):
+                print(f"登录状态：✅ 有效（账号 {d['data'].get('uname') or '未知'}）\n")
+                logged = True
+            else:
+                print("登录状态：❌ 已失效（过期、退出登录或改了密码）")
+                print("            运行 bili setcookie 重新设置\n")
+        except Exception as e:
+            print(f"登录状态：⚠️ 连不上 B 站，判断不了（{e}）\n")
+
+    out = load_config()["out"]
+    print(f"输出目录：{out}")
+    print(f"          所有字幕都进这里，每个 UP 主一个子文件夹，例如 {out}/小白debug/")
+    print(f"          每个视频两个文件：<标题>.<语言>.srt 和 <标题>.<语言>.txt\n")
+
+    print("卸载（删掉这三处就干净了）：")
+    print(f"  1. rm -r {BASE}")
+    print("       ← cookie 和输出目录设置，就这两个文件")
+    cmd = shutil.which("bili") or os.path.realpath(sys.argv[0])
+    print(f"  2. rm {cmd}")
+    print("       ← 命令本身（软链删了不影响别处）；拿不准就敲 which bili")
+    print(f"  3. rm -r {HERE}")
+    print("       ← 源码目录")
+    print(f"  字幕文件在 {out} 里，那是你自己下的，删不删随你。")
+    print("\n本工具运行时只写 .srt 和 .txt 字幕文件，不留日志、不留缓存。")
+    return 0 if logged or not ck else 1
 
 
 def do_setcookie():
-    old = cookie()
-    if old:
-        print(f"⚠️  已设置过 cookie（{CONF}），本次直接覆盖。")
+    if cookie():
+        print(f"⚠️  已设置过 cookie（{COOKIE_FILE}），本次直接覆盖。")
     print("""怎么拿 cookie（Chrome，电脑版）：
   1. 打开 bilibili.com，确认右上角是你自己的头像
   2. 按 Cmd + Option + I 打开开发者工具（Mac 上 F12 是音量键）
@@ -281,15 +394,47 @@ def do_setcookie():
             print("❌ 有等号但没找到 SESSDATA=，未做任何改动。")
             return 1
         line = "SESSDATA=" + line
-    os.makedirs(os.path.dirname(CONF), exist_ok=True)
-    with open(CONF, "w", encoding="utf-8") as f:
+    os.makedirs(BASE, exist_ok=True)
+    with open(COOKIE_FILE, "w", encoding="utf-8") as f:
         f.write(line)
     try:
-        os.chmod(CONF, 0o600)
+        os.chmod(COOKIE_FILE, 0o600)
     except OSError:
         pass
-    print(f"✅ 已保存到 {CONF}")
+    print(f"✅ 已保存到 {COOKIE_FILE}")
     return do_status()
+
+
+def do_setout(argv):
+    cfg = load_config()
+    if not argv:
+        print(f"当前输出目录：{cfg['out']}")
+        print('改的话：bili setout "/绝对/路径/字幕"')
+        return 0
+    raw = " ".join(argv).strip().strip('"').strip("'")
+    if not raw:
+        print('❌ 没读到路径。用法：bili setout "/绝对/路径/字幕"')
+        return 1
+    path = os.path.expanduser(raw)
+    if not os.path.isabs(path):
+        print(f"❌ 这不是绝对路径：{raw}")
+        print("   要写完整的、从根目录开始的路径，并用双引号括起来，例如：")
+        print('   bili setout "/Users/你的名字/Movies/字幕"')
+        return 1
+    path = os.path.normpath(path)
+    try:
+        os.makedirs(path, exist_ok=True)
+    except OSError as e:
+        print(f"❌ 这个目录建不出来：{e}")
+        return 1
+    if not os.access(path, os.W_OK):
+        print(f"❌ 这个目录不可写：{path}")
+        return 1
+    cfg["out"] = path
+    save_config(cfg)
+    print(f"✅ 输出目录已设为：{path}")
+    print(f"   以后的字幕存到：{path}/<UP主>/<标题>.<语言>.srt")
+    return 0
 
 
 # ---------- 主流程 ----------
@@ -302,13 +447,16 @@ def run(argv):
         return do_status()
     if argv[0] == "setcookie":
         return do_setcookie()
+    if argv[0] == "setout":
+        return do_setout(argv[1:])
 
     urls, out, psel = parse(argv)
     if not urls:
         usage()
         return 2
+    out = out or load_config()["out"]
     if not cookie():
-        print("⚠️  还没设置 cookie，先按未登录状态试（部分视频仍可拿到 AI 字幕）")
+        print("⚠️  还没设置 cookie，先按未登录状态试（部分视频仍能拿到 AI 字幕）")
 
     ok = fail = 0
     total = len(urls)
@@ -316,7 +464,7 @@ def run(argv):
         print(f"── [{n}/{total}] {u}" if total > 1 else f"── {u}")
         pair = targets(u)
         if not pair:
-            print("   ✗ 认不出这是哪个视频（要 BV 号或 av 号）")
+            print("   ✗ 认不出这是哪个视频（要 BV 号、av 号或完整网址）")
             fail += 1
             continue
         try:
@@ -334,7 +482,7 @@ def run(argv):
                 continue
         multi = len(v["pages"]) > 1
         for p in pages:
-            label = f"P{p['page']} " + (p.get("part") or "") if multi else ""
+            label = f"P{p['page']} {p.get('part') or ''} " if multi else ""
             name = clean(v["title"])
             if multi:
                 name += f".p{p['page']:02d}"
@@ -350,7 +498,7 @@ def run(argv):
                 fail += 1
                 continue
             lan = sub.get("lan") or "unknown"
-            kind = "AI字幕" if str(lan).startswith("ai") else "原字幕"
+            kind = "AI 字幕" if str(lan).startswith("ai") else "原字幕"
             try:
                 body = body_of(sub)
             except Exception as e:
@@ -364,17 +512,32 @@ def run(argv):
                 continue
             if level == "warn":
                 print(f"   ⚠️  {label}{note}")
-            path = os.path.join(out, clean(v["up"]), f"{name}.{lan}.srt")
+
+            url = f"https://www.bilibili.com/video/{v['bvid'] or 'av' + str(v['aid'])}"
+            if multi:
+                url += f"?p={p['page']}"
+            title = f"{v['title']} P{p['page']} {p.get('part') or ''}".strip() if multi else v["title"]
+            meta = {
+                "title": title,
+                "up": v["up"],
+                "url": url,
+                "pub": datetime.fromtimestamp(v["pubdate"]).strftime("%Y-%m-%d %H:%M") if v["pubdate"] else "未知",
+                "dur": clock(p.get("duration") or v["duration"]),
+                "kind": kind,
+                "lan": lan,
+            }
+            base = os.path.join(out, clean(v["up"]), f"{name}.{lan}")
             try:
-                save(path, to_srt(body))
+                save(base + ".srt", to_srt(body))
+                save(base + ".txt", to_txt(body, meta))
             except OSError as e:
                 print(f"   ✗ {label}写文件失败：{e}")
                 fail += 1
                 continue
-            print(f"   ✓ {label}{kind} {len(body)} 条 → {path}")
+            print(f"   ✓ {label}{kind} {len(body)} 条 → {base}.srt / .txt")
             ok += 1
 
-    print(f"==== 完成：{ok} 个字幕文件，{fail} 个视频没拿到 ====")
+    print(f"==== 完成：{ok} 个视频，{fail} 个没拿到 ====")
     print(f"==== 位置：{out} ====")
     return 0 if fail == 0 else 1
 
