@@ -1,4 +1,12 @@
-# bili-sub
+<p align="center">
+  <img src="assets/banner.jpg" alt="bili-sub — B 站字幕下载器" width="100%">
+</p>
+
+<p align="center">
+  <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-2ea44f?style=flat-square">
+  <img alt="Python 3.8+" src="https://img.shields.io/badge/Python-3.8%2B-3776AB?style=flat-square&logo=python&logoColor=white">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey?style=flat-square">
+</p>
 
 把 B 站视频的字幕下载到本地。一个视频给两个文件：`.srt` 丢给播放器和剪辑软件，`.txt` 给人读、给 AI 读。
 
@@ -26,14 +34,9 @@ bili 清单.txt BV1yyyyyyyyy                          # 混着来
 
 跑起来是这样：
 
-```
-── [1/2] BV1xxxxxxxxx
-   ✓ AI 字幕 259 条 → ~/Desktop/B站字幕/某个UP主/视频标题.ai-zh.srt / .txt
-── [2/2] BV1yyyyyyyyy
-   ↷ 已经下过了，跳过（想重下加 --force）
-==== 完成：新下 1 个，跳过 1 个，失败 0 个 ====
-==== 位置：~/Desktop/B站字幕 ====
-```
+<p align="center">
+  <img src="assets/demo.png" alt="bili 在终端里的输出" width="100%">
+</p>
 
 下完的目录长这样：
 
