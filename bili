@@ -577,7 +577,10 @@ def run(argv):
                 continue
             sub = pick(subs)
             if not sub:
-                print(f"   ✗ {label}这个视频没有字幕（原字幕、AI 字幕都没有）")
+                if cookie():
+                    print(f"   ✗ {label}这个视频没有字幕（原字幕、AI 字幕都没有）")
+                else:
+                    print(f"   ✗ {label}没取到字幕。没登录时不少视频看不到字幕，先 bili setcookie 再试")
                 fail += 1
                 continue
             lan = sub.get("lan") or "unknown"
