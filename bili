@@ -129,10 +129,12 @@ def usage():
   bili -p <N> <链接>         只下第 N 个分P（不写就下全部分P）
   bili -o "<目录>" <链接>    这次下载换个地方存，不改永久设置
   bili --force <链接>        已下载过的也重新下一遍（默认是跳过）
+  bili --delay <秒> <链接>   批量时相邻两个视频之间等几秒，默认 0.4
   bili setout "<绝对路径>"   永久设置字幕存哪儿（要绝对路径，用双引号括起来）
   bili status                看登录状态、版本号、字幕存哪儿、怎么卸载
   bili setcookie             设置或覆盖登录用的 cookie
   bili help                  显示这份帮助
+  bili -v, --version         看版本号（日期版本，例如 v20261106）
 
 每个视频会生成两个文件：
   <标题>.<语言>.srt         给播放器、剪辑软件用（带时间轴）
@@ -146,7 +148,7 @@ def usage():
 # ---------- 参数 ----------
 
 def parse(argv):
-    urls, listfiles, out, psel, force = [], [], None, None, False
+    urls, listfiles, out, psel, force, delay = [], [], None, None, False, 0.4
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -168,6 +170,14 @@ def parse(argv):
         elif a in ("--force", "-F"):
             force = True
             i += 1
+        elif a == "--delay":
+            if i + 1 >= len(argv):
+                die("❌ --delay 后面要跟秒数")
+            try:
+                delay = float(argv[i + 1])
+            except ValueError:
+                die(f"❌ --delay 要写数字，收到：{argv[i + 1]}")
+            i += 2
         elif a.startswith("-"):
             die(f"❌ 不认识的选项: {a}（敲 bili help 看全部用法）")
         else:
@@ -185,7 +195,7 @@ def parse(argv):
                 line = line.strip().lstrip("\ufeff")
                 if line and not line.startswith("#"):
                     urls.append(line)
-    return urls, out, psel, force
+    return urls, out, psel, force, delay
 
 
 def page_of(arg):
@@ -443,9 +453,13 @@ def do_status(verbose=False):
     print("       ← cookie 和输出目录设置")
     print(f"  2. rm {shell_path(body)}")
     print("       ← 程序本体，就一个文件")
-    if os.path.realpath(cmd) != body:
-        print(f"  3. rm {shell_path(cmd)}")
-        print("       ← 指向它的软链")
+    extra = []
+    for p in (os.path.abspath(sys.argv[0]), shutil.which("bili")):
+        if p and os.path.abspath(p) != body and p not in extra:
+            extra.append(p)
+    for i, p in enumerate(extra, 3):
+        print(f"  {i}. rm {shell_path(p)}")
+        print("       ← 指向它的快捷方式（软链），删了不影响别处")
     print(f"  字幕文件在 {pretty(out)} 里，那是你自己下的，删不删随你。")
     print("\n平时只写 .srt 和 .txt；设置 cookie 或改输出目录时，才会写上面第 1 项的配置。")
     return code
@@ -453,7 +467,7 @@ def do_status(verbose=False):
 
 def do_setcookie():
     if cookie():
-        print(f"⚠️  已设置过 cookie（{COOKIE_FILE}），本次直接覆盖。")
+        print(f"⚠️  已设置过 cookie（{pretty(COOKIE_FILE)}），本次直接覆盖。")
     print("""怎么拿 cookie（Chrome，电脑版）：
   1. 打开 bilibili.com，确认右上角是你自己的头像
   2. 按 Cmd + Option + I 打开开发者工具（Mac 上 F12 是音量键）
@@ -481,7 +495,7 @@ def do_setcookie():
         os.chmod(COOKIE_FILE, 0o600)
     except OSError:
         pass
-    print(f"✅ 已保存到 {COOKIE_FILE}")
+    print(f"✅ 已保存到 {pretty(COOKIE_FILE)}")
     return do_status()
 
 
@@ -505,10 +519,10 @@ def do_setout(argv):
     try:
         os.makedirs(path, exist_ok=True)
     except OSError as e:
-        print(f"❌ 这个目录建不出来：{e}")
+        print(f"❌ 这个目录建不出来：{pretty(path)}（{e}）")
         return 1
     if not os.access(path, os.W_OK):
-        print(f"❌ 这个目录不可写：{path}")
+        print(f"❌ 这个目录不可写：{pretty(path)}")
         return 1
     cfg["out"] = path
     save_config(cfg)
@@ -533,7 +547,7 @@ def run(argv):
     if argv[0] == "setout":
         return do_setout(argv[1:])
 
-    urls, out, psel, force = parse(argv)
+    urls, out, psel, force, delay = parse(argv)
     if not urls:
         usage()
         return 2
@@ -546,6 +560,8 @@ def run(argv):
     ok = fail = skip = 0
     total = len(urls)
     for n, u in enumerate(urls, 1):
+        if n > 1 and delay > 0:
+            time.sleep(delay)          # 批量时给 B 站留点余地，别连着打
         print(f"── [{n}/{total}] {u}" if total > 1 else f"── {u}")
         pair = targets(u)
         if not pair:
@@ -632,7 +648,7 @@ def run(argv):
                 print(f"   ✗ {label}写文件失败：{e}")
                 fail += 1
                 continue
-            print(f"   ✓ {label}{kind} {len(body)} 条 → {base}.srt / .txt")
+            print(f"   ✓ {label}{kind} {len(body)} 条 → {pretty(base)}.srt / .txt")
             ok += 1
 
     print(f"==== 完成：新下 {ok} 个，跳过 {skip} 个，失败 {fail} 个 ====")
