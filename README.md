@@ -21,28 +21,31 @@
 
 ## 安装
 
-只需要 `python3`（3.8 以上，macOS 和主流 Linux 都自带），不需要 sudo，不依赖 Homebrew。
+只需要 `python3`（3.8 以上）。不需要 sudo，不依赖 Homebrew，也不往系统目录里写东西。
 
-**方式一：一条命令**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Zhiyi1207/bili-sub/main/install.sh | bash
-```
-
-装到 `~/.local/bin/bili`，程序本体放在 `~/.local/share/bili-sub/`。
-
-**方式二：先看再装**
+**推荐：从 Releases 下载 `install.sh`，运行它**
 
 ```bash
-git clone <本仓库地址> ~/code/bili-sub && cd ~/code/bili-sub
-./install.sh
+bash install.sh
 ```
 
-**方式三：只要一个文件**
+它会问你要装到哪个目录（回车用默认的 `~/.local/bin`），然后把 `bili` 拷进去。装完敲 `bili help` 验证。
 
-去 Releases 下载 `bili`，`chmod +x` 之后丢进任意一个在 `PATH` 里的目录就行。
+**只想拿一个文件**
 
-装完敲 `bili help` 验证。如果 `~/.local/bin` 不在 `PATH` 里，脚本会把要加的那行打印出来，照着贴进 `~/.zshrc` 或 `~/.bashrc`。
+从 Releases 下载 `bili`，`chmod +x bili`，自己放到任意一个在 `PATH` 里的目录，比如：
+
+```bash
+mkdir -p ~/.local/bin && mv bili ~/.local/bin/
+```
+
+**想先看源码**
+
+```bash
+git clone <本仓库地址> && cd bili-sub && ./install.sh
+```
+
+如果目标目录不在 `PATH` 里，安装脚本会把要加的那行打印出来，照着贴进 `~/.zshrc` 或 `~/.bashrc`，重开终端即可。
 
 ## 命令
 
@@ -63,12 +66,12 @@ git clone <本仓库地址> ~/code/bili-sub && cd ~/code/bili-sub
 
 **重复下载**：目标位置已经有这个视频的字幕时，默认直接跳过，不重复请求，输出里会写 `↷ 已经下过了`。想强制重下加 `--force`。判断依据是 `.txt` 里记的链接——同名但属于别的视频的，不会覆盖，会另存成带 BV 号的名字。
 
-**语言**：只下 B 站上已有的那条——中文原字幕优先，没有就中文 AI 字幕，再没有才是其他语言的原字幕。不提供语言选项，需要别的语言请自己翻译。
+**语言**：每个视频只取一版——中文原字幕 > 中文 AI 字幕 > 其他语言的原字幕 > 其他语言的 AI 字幕。也就是说，只要有中文就用中文，没有中文才用视频本来的语言。不提供语言选项，需要别的语言请自己翻译。
 
 ## 输出
 
 ```
-~/Desktop/B站字幕/                    ← 默认总目录，可以用 bili setout 改
+~/Desktop/B站字幕/                    ← 默认总目录（没桌面环境就用 ~/Downloads），bili setout 可改
 └── 某个UP主/                        ← 一个 UP 主一个文件夹
     ├── 视频标题.ai-zh.srt            ← 给播放器、剪辑软件
     └── 视频标题.ai-zh.txt            ← 给人读、给 AI 读
@@ -117,24 +120,21 @@ cookie 存在 `~/.config/bili-sub/cookie`，权限 600，不会进仓库、不�
 
 ## 卸载
 
-三处，删完就干净：
+跑 `bili status`，最后会打印出你机器上真实的三处路径，照抄那几条命令就行。通常是：
 
 ```bash
-rm -r ~/.config/bili-sub          # cookie 和输出目录设置
-rm "$(command -v bili)"           # 命令本身
-rm -r ~/.local/share/bili-sub     # 安装脚本放的程序本体
+rm -r "$HOME/.config/bili-sub"     # cookie 和输出目录设置
+rm "$HOME/.local/bin/bili"         # 程序本体，就一个文件
 ```
 
-如果你是手动把 `bili` 放进某个目录的，第三条换成删你自己放的那个文件。
-
-字幕文件在输出目录里，那是你自己的东西，删不删随意。
+如果你自己做过软链，把软链也删掉。字幕文件在输出目录里，那是你自己的东西，删不删随意。
 
 ## 已知限制
 
 - 只下字幕，不下载视频/音频/弹幕/封面。
 - 依赖 B 站给网页播放器用的非公开接口。接口改结构、加签名（wbi）或加风控时需要跟着改代码。
 - AI 字幕本身没有标点、断句碎，识别也可能有错——`.txt` 只是把碎句按停顿拼回来，不会替你补标点。
-- 不提供语言选择，只按上面的优先级取一条。
+- 不提供语言选择，每个视频固定取一版（中文优先，其次视频原语言）。
 
 ## 许可
 
