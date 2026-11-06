@@ -39,37 +39,46 @@ bili https://www.bilibili.com/video/BV1xxxxxxxxx
 
 ## 环境
 
+- **只支持 macOS 和 Linux**（Windows 没做适配）
 - `python3` 3.8 以上（macOS 自带、主流 Linux 自带），**不装任何第三方包**
 - 能访问 `api.bilibili.com` 和 `aisubtitle.hdslb.com`
-- **Windows**：需要自己装一次 Python，然后把命令里的 `bili` 换成 `py bili`，其余用法相同
 
 ## 安装
 
-不需要 sudo，不依赖 Homebrew，也不往系统目录里写东西。
-
-**推荐：从 Releases 下载 `install.sh`，运行它**
+**一条命令，全程自动，不问你问题，不要 sudo：**
 
 ```bash
 bash install.sh
 ```
 
-它会问你要装到哪个目录（回车用默认的 `~/.local/bin`），然后把 `bili` 这一个文件拷进去。装完敲 `bili help` 验证。
+它做的事：
 
-**只想拿一个文件**
+1. 把 `bili` 装到 `~/.local/bin/`（你自己的目录，不碰 `/usr/local/bin`，也不碰 Homebrew 的地盘）；
+2. 如果 `~/.local/bin` 还不在 `PATH` 里，自动往 `~/.zshrc`（或 `~/.bashrc`）追加一段带标记的配置，**改之前先备份**；
+3. 自检一遍能不能跑，打印装到哪、改了什么、怎么撤销。
+
+重开终端，或者按提示 `source` 一下配置文件，就能用了。
+
+**如果想自己控制：**
+
+```bash
+./install.sh --no-modify-path        # 别动我的 shell 配置，只打印要加的那行
+BILI_BIN="$HOME/bin" ./install.sh    # 装到指定目录
+```
+
+**只想拿一个文件、手动放：**
 
 从 Releases 下载 `bili`，加执行权限，自己放进任意一个在 `PATH` 里的目录：
 
 ```bash
-chmod +x bili && mkdir -p ~/.local/bin && mv bili ~/.local/bin/
+chmod +x bili && mv bili ~/.local/bin/
 ```
 
-**想先看源码再装**
+**想先看源码再装：**
 
 ```bash
 git clone https://github.com/Zhiyi1207/bili-sub && cd bili-sub && ./install.sh
 ```
-
-如果目标目录不在 `PATH` 里，安装脚本会把要加的那行 `export PATH=...` 打印出来，照着贴进 `~/.zshrc` 或 `~/.bashrc`，重开终端即可。
 
 ## 命令
 
@@ -208,6 +217,7 @@ B 站同一视频可能有中文原字幕、中文 AI 字幕、英文 AI 字幕�
 - 依赖 B 站给网页播放器用的非公开接口。接口改结构、加签名（wbi）或加风控时需要跟着改代码。
 - AI 字幕本身没有标点、断句碎，识别也可能有错——`.txt` 只是把碎句按停顿拼回来，不会替你补标点。
 - 不提供语言选择，每个视频固定取一版。
+- 只支持 macOS 和 Linux，Windows 没做适配。
 
 ## 许可
 

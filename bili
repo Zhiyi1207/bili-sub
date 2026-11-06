@@ -430,7 +430,10 @@ def do_status(verbose=False):
     body = os.path.realpath(__file__)
     cmd = shutil.which("bili") or sys.argv[0]
     print(f"程序位置：{pretty(body)}")
-    print(f"命令入口：{pretty(cmd)}\n")
+    if shutil.which("bili"):
+        print(f"命令入口：{pretty(cmd)}\n")
+    else:
+        print("命令入口：（没在 PATH 里找到 bili，重开终端或 source 一下 shell 配置）\n")
     print(f"输出目录：{pretty(out)}")
     print(f"          所有字幕都进这里，每个 UP 主一个子文件夹，例如 {pretty(out)}/<UP主名>/")
     print(f"          每个视频两个文件：<标题>.<语言>.srt 和 <标题>.<语言>.txt\n")

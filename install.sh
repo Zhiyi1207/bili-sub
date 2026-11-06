@@ -1,26 +1,39 @@
 #!/usr/bin/env bash
-# bili-sub 安装脚本
+# bili-sub 安装脚本（macOS / Linux）
 #   本地：./install.sh
 #   在线：curl -fsSL https://raw.githubusercontent.com/Zhiyi1207/bili-sub/main/install.sh | bash
 #
-# 会把 bili 装到你指定的一个目录（默认 ~/.local/bin），不写别的文件，不需要 sudo，
-# 也不依赖 Homebrew。想跳过询问：BILI_BIN=/你的/目录 ./install.sh
+# 全自动：挑一个合适的目录、把 bili 拷进去、必要时配好 PATH、最后自检一遍。
+# 不问你任何问题。想干预：
+#   BILI_BIN=/你的/目录 ./install.sh     指定装到哪
+#   ./install.sh --no-modify-path        别动我的 shell 配置
 set -eu
 
 REPO="${BILI_REPO:-https://github.com/Zhiyi1207/bili-sub}"
-BIN_DIR="${BILI_BIN:-$HOME/.local/bin}"
+BIN_DIR="${BILI_BIN:-}"
+MODIFY_PATH=1
+[ "${BILI_NO_MODIFY_PATH:-0}" = "1" ] && MODIFY_PATH=0
+for a in "$@"; do
+  case "$a" in
+    --no-modify-path) MODIFY_PATH=0 ;;
+    -h|--help)
+      echo "用法: ./install.sh [--no-modify-path]"
+      echo "  BILI_BIN=<目录>  指定安装位置（默认自动挑一个可写目录）"
+      exit 0 ;;
+  esac
+done
 
 say() { printf '%s\n' "$*"; }
 die() { printf '❌ %s\n' "$*" >&2; exit 1; }
 
-# 1. 要有 python3 3.8+
+# ---------- 1. 检查 python3 ----------
 command -v python3 >/dev/null 2>&1 \
   || die "没找到 python3。macOS 可以跑 xcode-select --install；Linux 用发行版自带的包"
 python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' \
   || die "python3 版本太老，需要 3.8 以上"
 
-# 2. 找 bili 本体：脚本旁边有就直接用，否则去仓库取
-#    （curl | bash 时 BASH_SOURCE 是空的，一律走下载，不会误用当前目录的文件）
+# ---------- 2. 找到 bili 本体 ----------
+# curl | bash 时 BASH_SOURCE 为空，一律走下载，不会误用当前目录的文件
 SELF="${BASH_SOURCE[0]:-}"
 HERE=""
 if [ -n "$SELF" ] && [ -f "$SELF" ]; then
@@ -28,7 +41,7 @@ if [ -n "$SELF" ] && [ -f "$SELF" ]; then
 fi
 
 TMP=""
-cleanup() { [ -n "$TMP" ] && rm -rf "$TMP"; }
+cleanup() { if [ -n "$TMP" ]; then rm -rf "$TMP"; fi; return 0; }
 trap cleanup EXIT INT TERM
 
 if [ -n "$HERE" ] && [ -f "$HERE/bili" ]; then
@@ -44,16 +57,20 @@ elif command -v curl >/dev/null 2>&1; then
   SRC="$(find "$TMP" -maxdepth 2 -name bili -type f | head -1)"
   [ -n "$SRC" ] || die "下载的包里没找到 bili"
 else
-  die "需要 git 或 curl 其中一个才能下载，或者手动把 bili 放进你要的目录"
+  die "需要 git 或 curl 其中一个才能下载"
 fi
 
-# 3. 问用户装到哪（非交互场景跳过，用默认值）
-if [ "${BILI_NOPROMPT:-0}" != "1" ] && [ -t 0 ]; then
-  say "bili 会被拷到下面这个目录里，不用 sudo，也不会装到系统目录。"
-  printf '装到哪个目录？[回车用默认：%s] ' "$BIN_DIR"
-  read -r ans || ans=""
-  if [ -n "$ans" ]; then BIN_DIR="$ans"; fi
-fi
+in_path() {
+  case ":$PATH:" in
+    *":$1:"*) return 0 ;;
+  esac
+  return 1
+}
+
+# ---------- 3. 挑安装目录 ----------
+# 只装自己的目录：不碰 /usr/local/bin（要 sudo）、也不碰 /opt/homebrew/bin（那是 brew 的地盘）
+[ -n "$BIN_DIR" ] || BIN_DIR="$HOME/.local/bin"
+
 case "$BIN_DIR" in
   "~") BIN_DIR="$HOME" ;;
   "~/"*) BIN_DIR="$HOME/${BIN_DIR#\~/}" ;;
@@ -69,16 +86,70 @@ rm -f "$BIN_DIR/bili"
 cp "$SRC" "$BIN_DIR/bili"
 chmod 755 "$BIN_DIR/bili"
 
-say ""
-say "✅ 已安装：$BIN_DIR/bili"
-case ":$PATH:" in
-  *":$BIN_DIR:"*)
-    say "   现在就能用：bili help" ;;
-  *)
-    say ""
-    say "⚠️  $BIN_DIR 不在 PATH 里。把下面这行加到 ~/.zshrc（或 ~/.bashrc）末尾，再重开终端："
-    say "    export PATH=\"$BIN_DIR:\$PATH\"" ;;
+say "✅ 已装到：$BIN_DIR/bili"
+
+# ---------- 4. PATH ----------
+MARK_BEGIN="# >>> bili-sub >>>"
+MARK_END="# <<< bili-sub <<<"
+case "$BIN_DIR" in
+  "$HOME"/*) EXPORT_LINE="export PATH=\"\$HOME${BIN_DIR#$HOME}:\$PATH\"" ;;
+  *)         EXPORT_LINE="export PATH=\"$BIN_DIR:\$PATH\"" ;;
 esac
+
+add_to_profile() {
+  # $1 = rc 文件, $2 = 要追加的行
+  rc="$1"; line="$2"
+  if [ -f "$rc" ] && grep -qF "$MARK_BEGIN" "$rc" 2>/dev/null; then
+    say "   $rc 里已经有配置，跳过（没重复写）"
+    return 0
+  fi
+  if [ -f "$rc" ]; then
+    cp "$rc" "$rc.bak-$(date +%Y%m%d%H%M%S)" || die "备份 $rc 失败，没敢改它"
+  else
+    : > "$rc" 2>/dev/null || return 1
+  fi
+  {
+    printf '\n%s\n' "$MARK_BEGIN"
+    printf '%s\n' "$line"
+    printf '%s\n' "$MARK_END"
+  } >> "$rc" || die "写不进 $rc"
+  CHANGED_RC="$rc"
+}
+
+CHANGED_RC=""
+if in_path "$BIN_DIR"; then
+  say "   PATH 里已经有了，不用改配置"
+elif [ "$MODIFY_PATH" = "1" ]; then
+  case "${SHELL:-}" in
+    *fish) PROFILE="$HOME/.config/fish/config.fish" ;;
+    *zsh)  PROFILE="$HOME/.zshrc" ;;
+    *)     PROFILE="$HOME/.bashrc" ;;
+  esac
+  if [ -f "$HOME/.zshrc" ] && [ "$PROFILE" = "$HOME/.bashrc" ]; then
+    PROFILE="$HOME/.zshrc"      # macOS 上默认走 zsh
+  fi
+  case "$PROFILE" in
+    *fish) add_to_profile "$PROFILE" "fish_add_path $BIN_DIR" || PROFILE="" ;;
+    *)     add_to_profile "$PROFILE" "$EXPORT_LINE" || PROFILE="" ;;
+  esac
+  if [ -n "$PROFILE" ] && [ -n "$CHANGED_RC" ]; then
+    say "   已把 PATH 写进：${CHANGED_RC}（改前有备份）"
+    say "   重开终端，或者先跑一句：source \"$CHANGED_RC\""
+    say "   想撤销：删掉该文件里 $MARK_BEGIN 到 $MARK_END 之间的三行"
+  fi
+else
+  say "   按你的要求没动 shell 配置。要让命令生效，把这行加到 ~/.zshrc 或 ~/.bashrc："
+  say "   $EXPORT_LINE"
+fi
+
+# ---------- 5. 自检 ----------
+if "$BIN_DIR/bili" -v >/dev/null 2>&1; then
+  say "   自检通过：$("$BIN_DIR/bili" -v)"
+else
+  say "   ⚠️ 自检没通过，跑一下 \"$BIN_DIR/bili\" -v 看看报什么错"
+fi
+
 say ""
 say "下一步：bili help"
-say "需要登录态的话：bili setcookie"
+say "要登录态的话：bili setcookie"
+say "卸载方法：bili status 底部会写出要删的文件"
