@@ -188,18 +188,28 @@ def proc_ts(t):
     return f"{t // 60:02d}:{t % 60:02d}"
 
 
-def incomplete_reason(body, duration):
+def check(body, duration):
+    """返回 (级别, 说明)，级别 None 表示没问题。
+
+    容忍度随视频长度放大：短视频允许比片长短 20 秒，长视频允许短 5%。
+    差得更多就判为被截断——那不是片尾没人说话，是内容缺了一截。
+    """
     if not body:
-        return "一条字幕都没有"
+        return "fail", "一条字幕都没有"
     try:
         last = max(float(x.get("to", 0)) for x in body)
     except (TypeError, ValueError):
-        return "字幕时间戳格式不对"
-    if duration and last < duration - 10:
-        return f"字幕只到 {proc_ts(last)}，视频长 {proc_ts(duration)}，判为不完整"
-    if duration and last > duration + 120:
-        return f"字幕结尾 {proc_ts(last)} 反而超过视频长度 {proc_ts(duration)}，数据异常"
-    return None
+        return "fail", "字幕时间戳格式不对"
+    if not duration:
+        return None, None
+    if last > duration + 120:
+        return "fail", f"字幕结尾 {proc_ts(last)} 超过视频长度 {proc_ts(duration)}，数据异常"
+    gap = duration - last
+    if gap > max(20, duration * 0.05):
+        return "fail", f"只到 {proc_ts(last)}，视频长 {proc_ts(duration)}，判为被截断"
+    if gap > 10:
+        return "warn", f"比视频短 {int(gap)} 秒（片尾没人声时属正常）"
+    return None, None
 
 
 def to_srt(body):
@@ -347,11 +357,13 @@ def run(argv):
                 print(f"   ✗ {label}字幕内容下载失败：{e}")
                 fail += 1
                 continue
-            reason = incomplete_reason(body, p.get("duration") or v["duration"])
-            if reason:
-                print(f"   ✗ {label}{kind}不可用：{reason}")
+            level, note = check(body, p.get("duration") or v["duration"])
+            if level == "fail":
+                print(f"   ✗ {label}{kind}不可用：{note}")
                 fail += 1
                 continue
+            if level == "warn":
+                print(f"   ⚠️  {label}{note}")
             path = os.path.join(out, clean(v["up"]), f"{name}.{lan}.srt")
             try:
                 save(path, to_srt(body))
