@@ -7,7 +7,6 @@
 
 import json
 import os
-import shutil
 import re
 import sys
 import time
@@ -15,7 +14,6 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 
-HERE = os.path.dirname(os.path.realpath(__file__))
 BASE = os.path.expanduser("~/.config/bili-sub")
 COOKIE_FILE = os.path.join(BASE, "cookie")
 CONFIG_FILE = os.path.join(BASE, "config.json")
@@ -84,7 +82,8 @@ def save_config(cfg):
 def http_json(url, retries=RETRY):
     hdrs = {"User-Agent": UA, "Referer": "https://www.bilibili.com"}
     ck = cookie()
-    if ck:
+    host = (urllib.parse.urlparse(url).hostname or "").lower()
+    if ck and (host == "bilibili.com" or host.endswith(".bilibili.com")):
         hdrs["Cookie"] = ck
     err = None
     for attempt in range(retries + 1):
@@ -160,7 +159,7 @@ def parse(argv):
             die(f"❌ 找不到列表文件: {listfile}")
         with open(listfile, encoding="utf-8", errors="replace") as f:
             for line in f:
-                line = line.strip()
+                line = line.strip().lstrip("\ufeff")
                 if line and not line.startswith("#"):
                     urls.append(line)
     return urls, out, psel
@@ -331,65 +330,72 @@ def to_txt(body, meta):
 BAD = re.compile(r'[\\/:*?"<>|\r\n\t]')
 
 
-def clean(name, limit=80):
+def clean(name, limit=60):
     name = BAD.sub("_", name)
     name = re.sub(r"\s+", " ", name).strip().strip(".")
     return name[:limit] or "未命名"
 
 
-def save(path, text):
-    """先写 .part 再改名；失败时把 .part 清掉，不在磁盘上留垃圾。"""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".part"
+def save_pair(items):
+    """把 (路径, 内容) 全写成临时文件，再一起改名：要么两个都在，要么都不留。"""
+    tmps = []
     try:
-        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-            f.write(text)
-        os.replace(tmp, path)
+        for path, text in items:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            tmp = path + ".part"
+            with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+                f.write(text)
+            tmps.append((tmp, path))
+        for tmp, path in tmps:
+            os.replace(tmp, path)
     finally:
-        if os.path.exists(tmp):
-            try:
-                os.remove(tmp)
-            except OSError:
-                pass
+        for tmp, _ in tmps:
+            if os.path.exists(tmp):
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
 
 
 # ---------- 子命令 ----------
 
-def do_status():
+def do_status(verbose=False):
     print(f"bili-sub {VERSION}\n")
     ck = cookie()
-    logged = False
     if not ck:
         print("登录状态：❌ 还没设置 cookie（只影响原字幕和受限视频）")
         print("            运行 bili setcookie 设置\n")
+        code = 0
     else:
         try:
             d = http_json("https://api.bilibili.com/x/web-interface/nav")
             if (d.get("data") or {}).get("isLogin"):
-                print(f"登录状态：✅ 有效（账号 {d['data'].get('uname') or '未知'}）\n")
-                logged = True
+                who = f"（账号 {d['data'].get('uname') or '未知'}）" if verbose else ""
+                print(f"登录状态：✅ 有效{who}\n")
+                code = 0
             else:
                 print("登录状态：❌ 已失效（过期、退出登录或改了密码）")
                 print("            运行 bili setcookie 重新设置\n")
+                code = 1
         except Exception as e:
             print(f"登录状态：⚠️ 连不上 B 站，判断不了（{e}）\n")
+            code = 0
 
     out = load_config()["out"]
     print(f"输出目录：{pretty(out)}")
     print(f"          所有字幕都进这里，每个 UP 主一个子文件夹，例如 {pretty(out)}/<UP主名>/")
     print(f"          每个视频两个文件：<标题>.<语言>.srt 和 <标题>.<语言>.txt\n")
 
-    print("卸载（删掉这三处就干净了）：")
-    print(f"  1. rm -r {pretty(BASE)}")
-    print("       ← cookie 和输出目录设置，就这两个文件")
-    cmd = shutil.which("bili") or os.path.realpath(sys.argv[0])
-    print(f"  2. rm {pretty(cmd)}")
-    print("       ← 命令本身（软链删了不影响别处）；拿不准就敲 which bili")
-    print(f"  3. rm -r {pretty(HERE)}")
-    print("       ← 源码目录")
+    print("卸载（三处，删完就干净）：")
+    print("  1. rm -r ~/.config/bili-sub")
+    print("       ← cookie 和输出目录设置")
+    print('  2. rm "$(command -v bili)"')
+    print("       ← 命令本身（软链也行）")
+    print("  3. rm -r ~/.local/share/bili-sub")
+    print("       ← install.sh 装的那份；手动放的就删你放的那个文件")
     print(f"  字幕文件在 {pretty(out)} 里，那是你自己下的，删不删随你。")
-    print("\n本工具运行时只写 .srt 和 .txt 字幕文件，不留日志、不留缓存。")
-    return 0 if logged or not ck else 1
+    print("\n平时只写 .srt 和 .txt；设置 cookie 或改输出目录时，才会写上面第 1 项的配置。")
+    return code
 
 
 def do_setcookie():
@@ -464,8 +470,11 @@ def run(argv):
     if not argv or argv[0] in ("-h", "--help", "help"):
         usage()
         return 0
+    if argv[0] in ("-v", "--version", "version"):
+        print(f"bili-sub {VERSION}")
+        return 0
     if argv[0] == "status":
-        return do_status()
+        return do_status("--verbose" in argv[1:] or "-V" in argv[1:])
     if argv[0] == "setcookie":
         return do_setcookie()
     if argv[0] == "setout":
@@ -476,6 +485,8 @@ def run(argv):
         usage()
         return 2
     out = out or load_config()["out"]
+    seen = set()
+    urls = [u for u in urls if not (u in seen or seen.add(u))]
     if not cookie():
         print("⚠️  还没设置 cookie，先按未登录状态试（部分视频仍能拿到 AI 字幕）")
 
@@ -548,10 +559,20 @@ def run(argv):
                 "kind": kind,
                 "lan": lan,
             }
+            srt_text = to_srt(body)
             base = os.path.join(out, clean(v["up"]), f"{name}.{lan}")
+            srt_path = base + ".srt"
             try:
-                save(base + ".srt", to_srt(body))
-                save(base + ".txt", to_txt(body, meta))
+                if os.path.exists(srt_path):
+                    try:
+                        old = open(srt_path, encoding="utf-8").read()
+                    except OSError:
+                        old = None
+                    if old != srt_text:
+                        base += f".{v['bvid'] or v['aid']}"
+                        srt_path = base + ".srt"
+                        print(f"   ⚠️  同名文件内容不同，改存为 {os.path.basename(base)}.*")
+                save_pair([(srt_path, srt_text), (base + ".txt", to_txt(body, meta))])
             except OSError as e:
                 print(f"   ✗ {label}写文件失败：{e}")
                 fail += 1

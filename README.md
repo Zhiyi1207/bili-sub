@@ -21,37 +21,28 @@
 
 ## 安装
 
-**方式一：下载一个文件（最省事）**
+只需要 `python3`（3.8 以上，macOS 和主流 Linux 都自带），不需要 sudo，不依赖 Homebrew。
 
-去 Releases 下载 `bili`，然后：
+**方式一：一条命令**
 
 ```bash
-chmod +x ~/Downloads/bili
-sudo mv ~/Downloads/bili /usr/local/bin/bili
+curl -fsSL https://raw.githubusercontent.com/Zhiyi1207/bili-sub/main/install.sh | bash
 ```
 
-**方式二：跑安装脚本（会自己找可写的 PATH 目录）**
+装到 `~/.local/bin/bili`，程序本体放在 `~/.local/share/bili-sub/`。
+
+**方式二：先看再装**
 
 ```bash
 git clone <本仓库地址> ~/code/bili-sub && cd ~/code/bili-sub
 ./install.sh
 ```
 
-或者不看源码直接装（心里没底就别用这条）：
+**方式三：只要一个文件**
 
-```bash
-curl -fsSL <本仓库地址>/raw/main/install.sh | bash
-```
+去 Releases 下载 `bili`，`chmod +x` 之后丢进任意一个在 `PATH` 里的目录就行。
 
-**方式三：手动，想放哪儿放哪儿**
-
-```bash
-git clone <本仓库地址> ~/code/bili-sub
-chmod +x ~/code/bili-sub/bili
-ln -sf ~/code/bili-sub/bili /usr/local/bin/bili
-```
-
-装完敲 `bili help` 验证。`install.sh` 会把本体拷到 `~/.local/share/bili-sub/`，再在 PATH 里放一个软链。
+装完敲 `bili help` 验证。如果 `~/.local/bin` 不在 `PATH` 里，脚本会把要加的那行打印出来，照着贴进 `~/.zshrc` 或 `~/.bashrc`。
 
 ## 命令
 
@@ -73,7 +64,7 @@ ln -sf ~/code/bili-sub/bili /usr/local/bin/bili
 
 ```
 ~/Desktop/B站字幕/                    ← 默认总目录，可以用 bili setout 改
-└── 小白debug/                        ← 一个 UP 主一个文件夹
+└── 某个UP主/                        ← 一个 UP 主一个文件夹
     ├── 视频标题.ai-zh.srt            ← 给播放器、剪辑软件
     └── 视频标题.ai-zh.txt            ← 给人读、给 AI 读
 ```
@@ -121,24 +112,17 @@ cookie 存在 `~/.config/bili-sub/cookie`，权限 600，不会进仓库、不�
 
 ## 卸载
 
-`bili status` 最后会打印当前机器上的准确路径，通常是这三处：
+三处，删完就干净：
 
 ```bash
 rm -r ~/.config/bili-sub          # cookie 和输出目录设置
-rm /usr/local/bin/bili            # 命令本身
-rm -r ~/code/bili-sub             # 源码目录
+rm "$(command -v bili)"           # 命令本身
+rm -r ~/.local/share/bili-sub     # 安装脚本放的程序本体
 ```
 
+如果你是手动把 `bili` 放进某个目录的，第三条换成删你自己放的那个文件。
+
 字幕文件在输出目录里，那是你自己的东西，删不删随意。
-
-## 接口变了怎么办
-
-这个工具只靠三个接口吃饭，它们变了就得跟着改。判断和排查的顺序：
-
-1. **看报错**：`✗ 拿不到视频信息：接口返回 -400/-352/...`，或者网页上明明有字幕、工具却说“没有字幕”，基本就是接口变了。
-2. **抓真账**：浏览器打开那个视频页，`Cmd + Option + I` → Network 面板 → 筛选 `wbi` / `player`，刷新页面，看页面自己发的是哪个地址、带了哪些参数、返回的 JSON 里字幕字段叫什么。**页面自己发的请求就是唯一标准**，照着它改代码。
-3. **对照同类项目**：`yutto`、`bilix`、`BBDown` 这些项目的 issue 区通常会第一时间有人报“字幕下载失败”，跟着看别人怎么修的。
-4. **改完验证**：拿一个已知有字幕的视频跑一遍，条数和结尾时间对得上才算好。
 
 ## 已知限制
 
