@@ -24,7 +24,7 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 PREF = ["zh-CN", "zh-Hans", "zh-Hant", "zh-HK", "zh-TW", "ai-zh"]
 RETRY = 2
-VERSION = "v%d%d%d" % (datetime.now().year, datetime.now().month, datetime.now().day)
+VERSION = "v%04d%02d%02d" % (datetime.now().year, datetime.now().month, datetime.now().day)
 
 
 def die(msg, code=1):
@@ -95,7 +95,8 @@ def usage():
     print(f"""bili-sub {VERSION} —— B 站字幕下载器（只下字幕，不下视频）
 
   bili <链接> [链接...]      下载这些视频的字幕（BV号、av号、完整网址都行）
-  bili -f "<列表.txt>"       从文件里批量下载，每行一个链接，# 开头的是注释
+  bili <列表.txt>            直接丢一个 .txt 进来，里面每行一个链接，批量下
+                             （也可以写成 bili -f <列表.txt>，# 开头是注释）
   bili -p <N> <链接>         只下第 N 个分P（不写就下全部分P）
   bili -o "<目录>" <链接>    这次下载换个地方存，不改永久设置
   bili setout "<绝对路径>"   永久设置字幕存哪儿（要绝对路径，用双引号括起来）
@@ -115,14 +116,14 @@ def usage():
 # ---------- 参数 ----------
 
 def parse(argv):
-    urls, listfile, out, psel = [], None, None, None
+    urls, listfiles, out, psel = [], [], None, None
     i = 0
     while i < len(argv):
         a = argv[i]
         if a in ("-f", "--file"):
             if i + 1 >= len(argv):
                 die("❌ -f 后面要跟列表文件")
-            listfile = argv[i + 1]
+            listfiles.append(argv[i + 1])
             i += 2
         elif a in ("-o", "--out"):
             if i + 1 >= len(argv):
@@ -137,9 +138,13 @@ def parse(argv):
         elif a.startswith("-"):
             die(f"❌ 不认识的选项: {a}（敲 bili help 看全部用法）")
         else:
-            urls.append(a)
+            path = os.path.expanduser(a)
+            if path.lower().endswith((".txt", ".list")) and os.path.isfile(path):
+                listfiles.append(path)
+            else:
+                urls.append(a)
             i += 1
-    if listfile:
+    for listfile in listfiles:
         if not os.path.isfile(listfile):
             die(f"❌ 找不到列表文件: {listfile}")
         with open(listfile, encoding="utf-8", errors="replace") as f:
@@ -148,6 +153,11 @@ def parse(argv):
                 if line and not line.startswith("#"):
                     urls.append(line)
     return urls, out, psel
+
+
+def page_of(arg):
+    m = re.search(r"[?&]p=(\d+)", arg)
+    return m.group(1) if m else None
 
 
 def targets(arg):
@@ -473,11 +483,12 @@ def run(argv):
             print(f"   ✗ 拿不到视频信息：{e}")
             fail += 1
             continue
+        want = psel if psel is not None else page_of(u)
         pages = v["pages"]
-        if psel and psel != "all":
-            pages = [p for p in pages if str(p.get("page")) == str(psel)]
+        if want and want != "all":
+            pages = [p for p in pages if str(p.get("page")) == str(want)]
             if not pages:
-                print(f"   ✗ 这个视频没有第 {psel} 个分P")
+                print(f"   ✗ 这个视频没有第 {want} 个分P")
                 fail += 1
                 continue
         multi = len(v["pages"]) > 1
