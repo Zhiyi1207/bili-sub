@@ -31,7 +31,8 @@ DEFAULT_OUT = _default_out()
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 RETRY = 2
-VERSION = "v%04d%02d%02d" % (datetime.now().year, datetime.now().month, datetime.now().day)
+# 发版时改这一行；不要在运行时按当天日期算，否则装的是哪一版就说不清了
+VERSION = "v20261106"
 
 
 def pretty(path):
