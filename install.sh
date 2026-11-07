@@ -147,7 +147,9 @@ elif [ "$MODIFY_PATH" = "1" ]; then
   esac
   if [ -n "$PROFILE" ] && [ -n "$CHANGED_RC" ]; then
     say "   已把 PATH 写进：${CHANGED_RC}（改前有备份）"
-    say "   重开终端，或者先跑一句：source \"$CHANGED_RC\""
+    if [ "${BILI_LAUNCHER:-0}" != "1" ]; then
+      say "   重开终端，或者先跑一句：source \"$CHANGED_RC\""
+    fi
     say "   想撤销：删掉该文件里 $MARK_BEGIN 到 $MARK_END 之间的三行"
   fi
 else
