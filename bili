@@ -475,7 +475,7 @@ def do_status(verbose=False):
     else:
         print("命令入口：（没在 PATH 里找到 bili，重开终端或 source 一下 shell 配置）\n")
     print(f"输出目录：{pretty(out)}")
-    print(f"          所有字幕都进这里，每个 UP 主一个子文件夹、每个视频再一个，例如 {pretty(out)}/<UP主名>/<视频名>/")
+    print(f"          所有字幕都进这里，每个 UP 主一个子文件夹、每个视频再一个，例如 {pretty(out)}/<UP主名>/<视频标题>/")
     print(f"          每个视频两个文件：<标题>.<语言>.srt 和 <标题>.<语言>.txt\n")
 
     print("卸载：")
@@ -582,7 +582,7 @@ def do_setout(argv):
     cfg["out"] = path
     save_config(cfg)
     print(f"✅ 输出目录已设为：{pretty(path)}")
-    print(f"   以后的字幕存到：{pretty(path)}/<UP主>/<视频名>/<标题>.<语言>.srt")
+    print(f"   以后的字幕存到：{pretty(path)}/<UP主>/<视频标题>/<标题>.<语言>.srt")
     return 0
 
 
