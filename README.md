@@ -84,37 +84,42 @@ bili 清单.txt BV1yyyyyyyyy                          # 混着来
 
 电脑上要有 `python3`（macOS 自带，主流 Linux 也自带），不需要装别的东西。
 
-**方式一：一行命令（最省事，没有系统拦截）**
+### 方式一：一行命令（最省事，没有系统拦截）
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Zhiyi1207/bili-sub/main/install.sh | bash
 ```
 
-**方式二：下载安装包，双击装**
+### 方式二：下载对应系统的安装包，双击装
 
-到 [Releases](https://github.com/Zhiyi1207/bili-sub/releases/latest) 下载 `bili-sub-installer.zip`：
+去 [Releases](https://github.com/Zhiyi1207/bili-sub/releases/latest) 下载**属于你系统的那一个**：
 
-1. 双击这个 zip，系统会解压出一个文件夹；
-2. macOS 双击里面的 `install.command`，Linux 双击 `install.sh`（选“运行”）；
-3. macOS 第一次会提示“Apple 无法验证”，按下面走一遍就好。
+| 你的系统 | 下载这个 | 解压后双击 | 首次打开 |
+|---|---|---|---|
+| macOS | `bili-sub-macos.zip` | `install.command` | 被拦一次，按下面的步骤放行 |
+| Linux | `bili-sub-linux.zip` | `install.sh`，选“运行” | 无需放行 |
 
-macOS 放行步骤：
+装完重开一个终端窗口，敲 `bili help` 验证。
+
+**macOS 第一次会被拦**（提示“Apple 无法验证”）：
 
 1. 点 **“完成”**（别点“移到废纸篓”）；
 2. 打开 **系统设置 → 隐私与安全性**，往下滚到“安全性”；
 3. 点 **“仍要打开”**，再双击一次，弹窗里点“打开”。
 
-> 为什么用 zip 而不是直接下脚本：浏览器下载的单个脚本会丢掉“可执行”权限，双击会报“没有正确的访问权限”。zip 解压能把这个权限带出来，少踩一个坑。
+> 为什么发 zip 而不是直接发脚本：浏览器下载单个脚本会丢掉“可执行”权限，双击会报“没有正确的访问权限”。zip 解压能把权限带出来。
 
-**方式三：只要程序本身**
+### 方式三：只要程序本身
 
 ```bash
 chmod +x bili && mkdir -p ~/.local/bin && mv bili ~/.local/bin/
 ```
 
-安装脚本会做三件事：把 `bili` 放到 `~/.local/bin/`；如果这个目录不在 `PATH` 里，自动往 `~/.zshrc` 或 `~/.bashrc` 追加一行，改之前先备份；最后自己跑一遍确认能用。它不会碰 `/usr/local/bin`，不会碰 Homebrew 的目录，也不需要 `sudo`。
+安装器会做三件事：把 `bili` 放到 `~/.local/bin/`；如果这个目录不在 `PATH` 里，自动往 `~/.zshrc` 或 `~/.bashrc` 追加一行，改之前先备份；最后自己跑一遍确认能用。它不会碰 `/usr/local/bin`，不会碰 Homebrew 的目录，也不需要 `sudo`。
 
-**装完想删掉**，跑 `bili status`，最后会打印你机器上真实的路径，照抄那几行就行：
+### 卸载
+
+跑 `bili status`，最后会打印你机器上真实的路径，照抄那几行就行：
 
 ```bash
 rm -r "$HOME/.config/bili-sub"     # cookie 和输出目录设置
