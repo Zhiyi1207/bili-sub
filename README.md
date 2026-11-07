@@ -119,7 +119,9 @@ curl -fsSL https://raw.githubusercontent.com/Zhiyi1207/bili-sub/main/install.sh 
 chmod +x bili && mkdir -p ~/.local/bin && mv bili ~/.local/bin/
 ```
 
-安装器会做三件事：把 `bili` 放到 `~/.local/bin/`；如果这个目录不在 `PATH` 里，自动往 `~/.zshrc` 或 `~/.bash_profile` 加一行（只加自己带标记的一小段，重复运行不会叠加）；最后自己跑一遍确认能用。它不会碰 `/usr/local/bin`，不会碰 Homebrew 的目录，也不需要 `sudo`。
+前两种方式用的安装器会做三件事：把 `bili` 放到 `~/.local/bin/`；如果这个目录不在 `PATH` 里，自动往 `~/.zshrc` 或 `~/.bash_profile` 加一行（只加自己带标记的一小段，重复运行不会叠加）；最后自己跑一遍确认能用。它不会碰 `/usr/local/bin`，不会碰 Homebrew 的目录，也不需要 `sudo`。
+
+方式三需要你自己保证 `~/.local/bin` 在 `PATH` 里。
 
 ### 卸载
 
