@@ -84,22 +84,32 @@ bili 清单.txt BV1yyyyyyyyy                          # 混着来
 
 电脑上要有 `python3`（macOS 自带，主流 Linux 也自带），不需要装别的东西。
 
-**最省事：双击安装**
+**方式一：一行命令（最省事，没有系统拦截）**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Zhiyi1207/bili-sub/main/install.sh | bash
+```
+
+**方式二：双击安装**
 
 | 你的系统 | 下载这个 | 怎么用 |
 |---|---|---|
-| macOS | `install.command` | **双击**它。第一次如果提示“无法验证开发者”，右键 → 打开 → 确认一次 |
-| Linux | `install.sh` | **双击**它，弹出选项时选“运行”；没有这个选项就右键 → 属性 → 勾选“允许作为程序执行”再双击 |
+| macOS | `install.command` | 双击。第一次会被系统拦（Apple 无法验证），按下节步骤放行 |
+| Linux | `install.sh` | 双击，选“运行”；没这个选项就右键 → 属性 → 勾“允许作为程序执行” |
 
-装完会打印“已装好”，并提示你重开终端。重开一个终端窗口，敲 `bili help` 验证。
+macOS 15 之后第一次双击会弹“未打开 install.command”，照这个走：
 
-**也可以用命令装**（两个系统都一样）：
+1. 点 **“完成”**（别点“移到废纸篓”）；
+2. 打开 **系统设置 → 隐私与安全性**，往下滚到“安全性”那一块；
+3. 点 **“仍要打开”**，再双击一次，弹窗里点“打开”。
+
+不想走这个流程，也可以在终端里跑一句去掉系统标记，然后双击就正常了：
 
 ```bash
-bash install.sh
+xattr -d com.apple.quarantine ~/Downloads/install.command
 ```
 
-**只想拿一个文件、手动放**：
+**方式三：只要程序本身**
 
 ```bash
 chmod +x bili && mkdir -p ~/.local/bin && mv bili ~/.local/bin/
