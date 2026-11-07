@@ -90,32 +90,21 @@ bili 清单.txt BV1yyyyyyyyy                          # 混着来
 curl -fsSL https://raw.githubusercontent.com/Zhiyi1207/bili-sub/main/install.sh | bash
 ```
 
-**方式二：双击安装**
+**方式二：下载安装包，双击装**
 
-| 你的系统 | 下载这个 | 怎么用 |
-|---|---|---|
-| macOS | `install.command` | 先 `chmod +x` 给执行权限，再双击；第一次会被系统拦，按下节步骤放行 |
-| Linux | `install.sh` | 双击，选“运行”；没这个选项就右键 → 属性 → 勾“允许作为程序执行” |
+到 [Releases](https://github.com/Zhiyi1207/bili-sub/releases/latest) 下载 `bili-sub-installer.zip`：
 
-macOS 上有两道关，都是系统行为，不是脚本的问题：
+1. 双击这个 zip，系统会解压出一个文件夹；
+2. macOS 双击里面的 `install.command`，Linux 双击 `install.sh`（选“运行”）；
+3. macOS 第一次会提示“Apple 无法验证”，按下面走一遍就好。
 
-**第一道：文件没有执行权限**（浏览器下载的脚本默认是只读的）。提示“无法执行，因为你没有正确的访问权限”时，跑一句：
-
-```bash
-chmod +x ~/Downloads/install.command
-```
-
-**第二道：Apple 无法验证开发者。** 照这个走：
+macOS 放行步骤：
 
 1. 点 **“完成”**（别点“移到废纸篓”）；
-2. 打开 **系统设置 → 隐私与安全性**，往下滚到“安全性”那一块；
+2. 打开 **系统设置 → 隐私与安全性**，往下滚到“安全性”；
 3. 点 **“仍要打开”**，再双击一次，弹窗里点“打开”。
 
-不想走这个流程，也可以在终端里跑一句去掉系统标记，然后双击就正常了：
-
-```bash
-xattr -d com.apple.quarantine ~/Downloads/install.command
-```
+> 为什么用 zip 而不是直接下脚本：浏览器下载的单个脚本会丢掉“可执行”权限，双击会报“没有正确的访问权限”。zip 解压能把这个权限带出来，少踩一个坑。
 
 **方式三：只要程序本身**
 
