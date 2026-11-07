@@ -32,7 +32,7 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 RETRY = 2
 # 发版时改这一行；不要在运行时按当天日期算，否则装的是哪一版就说不清了
-VERSION = "v20261106"
+VERSION = "v20261107"
 
 
 def pretty(path):
@@ -135,7 +135,7 @@ def usage():
   bili status                看登录状态、版本号、字幕存哪儿、怎么卸载
   bili setcookie             设置或覆盖登录用的 cookie
   bili help                  显示这份帮助
-  bili -v, --version         看版本号（日期版本，例如 v20261106）
+  bili -v, --version         看版本号（日期版本，例如 v20261107）
 
 每个视频会生成两个文件：
   <标题>.<语言>.srt         给播放器、剪辑软件用（带时间轴）
@@ -439,10 +439,12 @@ def do_status(verbose=False):
 
     out = load_config()["out"]
     body = os.path.realpath(__file__)
-    cmd = shutil.which("bili") or sys.argv[0]
+    cmd = shutil.which("bili")
     print(f"程序位置：{pretty(body)}")
-    if shutil.which("bili"):
+    if cmd and os.path.realpath(cmd) == body:
         print(f"命令入口：{pretty(cmd)}\n")
+    elif cmd:
+        print(f"命令入口：⚠️ PATH 里先找到的是另一个 bili：{pretty(cmd)}\n")
     else:
         print("命令入口：（没在 PATH 里找到 bili，重开终端或 source 一下 shell 配置）\n")
     print(f"输出目录：{pretty(out)}")
@@ -468,9 +470,9 @@ def do_status(verbose=False):
         ap = os.path.abspath(p)
         if ap == body or ap in extra:
             continue
-        if not os.path.islink(ap) and same_file(ap, body):
-            continue
-        extra.append(ap)
+        # 只列“指向本体的软链”；PATH 里别处装的另一个 bili 不归我们管
+        if os.path.islink(ap) and os.path.realpath(ap) == body:
+            extra.append(ap)
     for i, p in enumerate(extra, 3):
         print(f"  {i}. rm {shell_path(p)}")
         print("       ← 指向它的快捷方式（软链），删了不影响别处")
