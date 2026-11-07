@@ -186,6 +186,16 @@ bili 'https://www.bilibili.com/video/BV1xxx?p=2&t=0'
 
 改代码的话，`tests/offline_test.py` 可以不联网跑一遍逻辑回归。
 
+## 关于 macOS 的“无法验证开发者”
+
+第一次双击 `install.command` 时，macOS 会拦一下。这是系统对所有“从网上下载的脚本”的默认保护，不是文件损坏，也不代表它有安全问题。按安装步骤里写的方式放行一次，之后就不再提示。
+
+不想经过这个提示，用一行命令安装（不下载文件，也就没有这个标记）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Zhiyi1207/bili-sub/main/install.sh | bash
+```
+
 ## 许可与免责
 
 [MIT](LICENSE)：个人、商业都能免费用，也能改、能再发布。唯一要求是保留版权声明和许可声明。

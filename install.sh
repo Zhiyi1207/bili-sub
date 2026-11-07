@@ -170,7 +170,7 @@ fi
 found="$(command -v bili 2>/dev/null || true)"
 if [ -z "$found" ] && [ "${BILI_LAUNCHER:-0}" = "1" ]; then
   say ""
-  say "👉 装好了。这个窗口马上会换成一个新的终端，里面直接就能敲 bili。"
+  say "👉 装好了。这个窗口可以直接关掉（不会弹提示），新开一个终端就能敲 bili。"
 elif [ -z "$found" ]; then
   say ""
   say "👉 现在这个窗口还敲不出 bili，这是正常的：PATH 只在开终端时读一次。"
@@ -188,16 +188,7 @@ elif [ "$found" != "$BIN_DIR/bili" ]; then
 fi
 
 say ""
-if [ "${BILI_LAUNCHER:-0}" = "1" ]; then
-  say "下一步：在新窗口里敲 bili help"
-else
-  say "下一步：新开终端后敲 bili help"
-fi
+say "下一步：新开一个终端，敲 bili help"
 say "要登录态的话：bili setcookie"
 say "卸载方法：bili status 底部会写出要删的文件"
 
-if [ "${BILI_LAUNCHER:-0}" = "1" ]; then
-  echo
-  echo "切换到一个可用的终端…"
-  exec "${SHELL:-/bin/zsh}" -i
-fi
