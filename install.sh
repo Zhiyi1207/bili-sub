@@ -88,11 +88,33 @@ esac
 
 mkdir -p "$BIN_DIR" || die "建不了这个目录：$BIN_DIR"
 [ -w "$BIN_DIR" ] || die "这个目录不可写：$BIN_DIR"
+
+# 覆盖前先看装过没有。只打印，不询问、不拦截、不影响结果
+ver_of() {
+  if [ -x "$1" ]; then
+    "$1" -v </dev/null 2>/dev/null
+  else
+    python3 "$1" -v </dev/null 2>/dev/null
+  fi | awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^v[0-9]/) { print $i; exit } }'
+}
+OLD_VER=""
+if [ -x "$BIN_DIR/bili" ]; then
+  OLD_VER="$(ver_of "$BIN_DIR/bili")"
+fi
+NEW_VER="$(ver_of "$SRC")"
+
 rm -f "$BIN_DIR/bili"
 cp "$SRC" "$BIN_DIR/bili"
 chmod 755 "$BIN_DIR/bili"
 
 say "✅ 已装到：$BIN_DIR/bili"
+if [ -n "$OLD_VER" ] && [ -n "$NEW_VER" ]; then
+  if [ "$OLD_VER" = "$NEW_VER" ]; then
+    say "   检测到已装 ${OLD_VER}，同一个版本，重新覆盖了一遍"
+  else
+    say "   检测到已装 ${OLD_VER}，已升级到 ${NEW_VER}"
+  fi
+fi
 
 # ---------- 4. PATH ----------
 MARK_BEGIN="# >>> bili-sub >>>"

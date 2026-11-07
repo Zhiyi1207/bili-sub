@@ -22,6 +22,7 @@
 - **下不全就不写文件。** 一条字幕都没有、或者只到视频一半，直接报错，不给你一个"看起来成功"的残片。
 - **一条 `status` 说清所有事。** 登录状态、版本号、装在哪、存哪、卸载要删哪几个文件，都在这。
 - **不添乱。** 不建缓存、不留日志、不写索引，只写字幕文件本身。
+- **更新就是覆盖。** 下载新版、双击、完事；不用卸载，不丢登录态和已经下好的字幕，不重复写 shell 配置，也不留备份文件。
 
 ## 用起来是什么样
 
@@ -99,7 +100,7 @@ curl -fsSL https://raw.githubusercontent.com/Zhiyi1207/bili-sub/main/install.sh 
 | macOS | `bili-sub-macos.zip` | 包里只有一个 `install.command` | 被拦一次，按下面的步骤放行 |
 | Linux | `bili-sub-linux.zip` | 包里只有一个 `install.sh`，选“运行” | 无需放行 |
 
-双击装完，**当前窗口会自动换成一个新的终端**，PATH 已经生效，直接敲 `bili -v` 就能用，不用自己 `source`、也不用重开窗口。
+双击装完，**关掉这个窗口，新开一个终端**，PATH 才会生效——然后敲 `bili -v` 确认版本。
 
 **macOS 第一次会被拦**（提示“Apple 无法验证”）：
 
@@ -115,7 +116,7 @@ curl -fsSL https://raw.githubusercontent.com/Zhiyi1207/bili-sub/main/install.sh 
 chmod +x bili && mkdir -p ~/.local/bin && mv bili ~/.local/bin/
 ```
 
-安装器会做三件事：把 `bili` 放到 `~/.local/bin/`；如果这个目录不在 `PATH` 里，自动往 `~/.zshrc` 或 `~/.bashrc` 追加一行，改之前先备份；最后自己跑一遍确认能用。它不会碰 `/usr/local/bin`，不会碰 Homebrew 的目录，也不需要 `sudo`。
+安装器会做三件事：把 `bili` 放到 `~/.local/bin/`；如果这个目录不在 `PATH` 里，自动往 `~/.zshrc` 或 `~/.bash_profile` 加一行（只加自己带标记的一小段，重复运行不会叠加）；最后自己跑一遍确认能用。它不会碰 `/usr/local/bin`，不会碰 Homebrew 的目录，也不需要 `sudo`。
 
 ### 卸载
 
@@ -127,6 +128,35 @@ rm "$HOME/.local/bin/bili"         # 程序本体，就一个文件
 ```
 
 下好的字幕在输出目录里，那是你自己的东西，删不删随意。
+
+## 怎么更新
+
+**下载新版，双击，覆盖，完事。** 不用卸载，不用先删旧版，也不用重新登录、重新设输出目录。
+
+1. 去 [Releases](https://github.com/Zhiyi1207/bili-sub/releases/latest) 下载你系统那个 zip；
+2. 解压，双击 `install.command`（Linux 是 `install.sh`）；
+3. 看到“已装好”就把窗口关掉，新开一个终端，`bili -v` 确认版本。
+
+安装器在覆盖前会读一下你装过的版本，直接告诉你发生了什么：
+
+```text
+✅ 已装到：/Users/你/.local/bin/bili
+   检测到已装 v20260101，已升级到 v20261107
+```
+
+装的本来就是同一个版本也没关系——它会说“同一个版本，重新覆盖了一遍”，不会报错。
+
+覆盖的只有程序本身，别的一概不碰：
+
+| 东西 | 更新之后 |
+|---|---|
+| 程序 `~/.local/bin/bili` | 换成新版 |
+| `~/.config/bili-sub/`（登录 cookie、输出目录设置） | 原样保留 |
+| 已经下好的字幕、UP 主文件夹 | 原样保留 |
+| shell 配置里 PATH 那一小段 | 已经在就跳过，不会重复追加 |
+| 备份文件 | 一个都不留 |
+
+如果以前把旧版装到了别的目录，新版装好后会提醒你 `PATH` 里先找到的是哪一个，按提示把多余的那个删掉就行。
 
 ## 常见问题
 
