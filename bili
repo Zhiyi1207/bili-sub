@@ -400,6 +400,18 @@ def clean(name, limit=60):
     return name[:limit] or "未命名"
 
 
+# 视频文件夹的名字要短，文件名仍然保留完整标题
+FOLDER_LIMIT = 16
+
+
+def video_folder(title, page=None):
+    """一个视频一个文件夹：标题截短，分P带上 P 号。"""
+    folder = clean(title, FOLDER_LIMIT)
+    if page:
+        folder += f".p{page:02d}"
+    return folder
+
+
 def save_pair(items):
     """把 (路径, 内容) 全写成临时文件，再一起改名：要么两个都在，要么都不留。"""
     tmps = []
@@ -645,7 +657,7 @@ def run(argv):
             if multi:
                 url += f"?p={p['page']}"
             title = f"{v['title']} P{p['page']} {p.get('part') or ''}".strip() if multi else v["title"]
-            base = os.path.join(out, clean(v["up"]), f"{name}.{lan}")
+            base = os.path.join(out, clean(v["up"]), video_folder(v["title"], p["page"] if multi else None), f"{name}.{lan}")
             state = None if force else existing(base, url)
             if state == "same":
                 print(f"   ↷ {label}已经下过了，跳过（想重下加 --force）")
