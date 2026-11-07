@@ -9,6 +9,12 @@
 #   ./install.sh --no-modify-path        别动我的 shell 配置
 set -eu
 
+# 双击运行时文件名以 .command 结尾，自动进入“装完切成可用终端”的模式
+case "${0##*/}" in
+  *.command) BILI_LAUNCHER=1 ;;
+esac
+export BILI_LAUNCHER="${BILI_LAUNCHER:-0}"
+
 REPO="${BILI_REPO:-https://github.com/Zhiyi1207/bili-sub}"
 BIN_DIR="${BILI_BIN:-}"
 MODIFY_PATH=1
@@ -193,3 +199,9 @@ else
 fi
 say "要登录态的话：bili setcookie"
 say "卸载方法：bili status 底部会写出要删的文件"
+
+if [ "${BILI_LAUNCHER:-0}" = "1" ]; then
+  echo
+  echo "切换到一个可用的终端…"
+  exec "${SHELL:-/bin/zsh}" -i
+fi

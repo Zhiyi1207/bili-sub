@@ -96,8 +96,8 @@ curl -fsSL https://raw.githubusercontent.com/Zhiyi1207/bili-sub/main/install.sh 
 
 | 你的系统 | 下载这个 | 解压后双击 | 首次打开 |
 |---|---|---|---|
-| macOS | `bili-sub-macos.zip` | `install.command` | 被拦一次，按下面的步骤放行 |
-| Linux | `bili-sub-linux.zip` | `install.sh`，选“运行” | 无需放行 |
+| macOS | `bili-sub-macos.zip` | 包里只有一个 `install.command` | 被拦一次，按下面的步骤放行 |
+| Linux | `bili-sub-linux.zip` | 包里只有一个 `install.sh`，选“运行” | 无需放行 |
 
 双击装完，**当前窗口会自动换成一个新的终端**，PATH 已经生效，直接敲 `bili -v` 就能用，不用自己 `source`、也不用重开窗口。
 
