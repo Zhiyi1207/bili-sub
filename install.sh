@@ -127,18 +127,20 @@ add_to_profile() {
   CHANGED_RC="$rc"
 }
 
+# 先算清楚该改哪个 shell 配置文件（即使用不到，后面提示也要用）
+case "${SHELL:-}" in
+  *fish) PROFILE="$HOME/.config/fish/config.fish" ;;
+  *zsh)  PROFILE="$HOME/.zshrc" ;;
+  *)     PROFILE="$HOME/.bashrc" ;;
+esac
+if [ -f "$HOME/.zshrc" ] && [ "$PROFILE" = "$HOME/.bashrc" ]; then
+  PROFILE="$HOME/.zshrc"
+fi
+
 CHANGED_RC=""
 if in_path "$BIN_DIR"; then
   say "   PATH 里已经有了，不用改配置"
 elif [ "$MODIFY_PATH" = "1" ]; then
-  case "${SHELL:-}" in
-    *fish) PROFILE="$HOME/.config/fish/config.fish" ;;
-    *zsh)  PROFILE="$HOME/.zshrc" ;;
-    *)     PROFILE="$HOME/.bashrc" ;;
-  esac
-  if [ -f "$HOME/.zshrc" ] && [ "$PROFILE" = "$HOME/.bashrc" ]; then
-    PROFILE="$HOME/.zshrc"      # macOS 上默认走 zsh
-  fi
   case "$PROFILE" in
     *fish) add_to_profile "$PROFILE" "fish_add_path $BIN_DIR" || PROFILE="" ;;
     *)     add_to_profile "$PROFILE" "$EXPORT_LINE" || PROFILE="" ;;
@@ -160,7 +162,25 @@ else
   say "   ⚠️ 自检没通过，跑一下 \"$BIN_DIR/bili\" -v 看看报什么错"
 fi
 
+# 当前窗口认不认识 bili？认到的是不是刚装的这个？
+found="$(command -v bili 2>/dev/null || true)"
+if [ -z "$found" ]; then
+  say ""
+  say "👉 现在这个窗口还敲不出 bili，这是正常的：PATH 只在开终端时读一次。"
+  say "   做下面任意一件就行："
+  say "   1) 关掉这个窗口，重新开一个终端；"
+  if [ -n "${PROFILE:-}" ]; then
+    say "   2) 或者在这里运行：source \"$PROFILE\""
+  fi
+  say "   3) 或者先用完整路径：\"$BIN_DIR/bili\" help"
+elif [ "$found" != "$BIN_DIR/bili" ]; then
+  say ""
+  say "⚠️  你的 PATH 里先找到的是另一个 bili：$found"
+  say "   刚装好的是：$BIN_DIR/bili"
+  say "   把旧的那个删掉（rm \"$found\"），或者把它从 PATH 里去掉，再重开终端。"
+fi
+
 say ""
-say "下一步：bili help"
+say "下一步：新开终端后敲 bili help"
 say "要登录态的话：bili setcookie"
 say "卸载方法：bili status 底部会写出要删的文件"
