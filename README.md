@@ -84,33 +84,30 @@ bili 清单.txt BV1yyyyyyyyy                          # 混着来
 
 电脑上要有 `python3`（macOS 自带，主流 Linux 也自带），不需要装别的东西。
 
-1. 打开 [Releases](https://github.com/Zhiyi1207/bili-sub/releases/latest)，下载 `install.sh`；
-2. 在下载它的文件夹里打开终端，运行：
+**最省事：双击安装**
 
-   ```bash
-   bash install.sh
-   ```
+| 你的系统 | 下载这个 | 怎么用 |
+|---|---|---|
+| macOS | `install.command` | **双击**它。第一次如果提示“无法验证开发者”，右键 → 打开 → 确认一次 |
+| Linux | `install.sh` | **双击**它，弹出选项时选“运行”；没有这个选项就右键 → 属性 → 勾选“允许作为程序执行”再双击 |
 
-3. 看到“已装好”就完事了。重开一个终端窗口，敲 `bili help` 验证。
+装完会打印“已装好”，并提示你重开终端。重开一个终端窗口，敲 `bili help` 验证。
 
-**不想开终端？** 下载 Release 里的 `install.command`，双击它——会自动打开终端窗口装好，跑完停住。
-（macOS 第一次可能提示“无法验证开发者”，右键点它 → 打开，确认一次即可。）
+**也可以用命令装**（两个系统都一样）：
 
-脚本会做三件事：把 `bili` 放到 `~/.local/bin/`；如果这个目录还不在 `PATH` 里（`PATH` 就是终端找命令的地方），自动往 `~/.zshrc` 或 `~/.bashrc` 追加一行，改之前先备份；最后自己跑一遍确认能用。它不会碰 `/usr/local/bin`，不会碰 Homebrew 的目录，也不需要 `sudo`。
+```bash
+bash install.sh
+```
 
-**不想用脚本**，也可以只拿一个文件：
+**只想拿一个文件、手动放**：
 
 ```bash
 chmod +x bili && mkdir -p ~/.local/bin && mv bili ~/.local/bin/
 ```
 
-**想先看源码**：
+安装脚本会做三件事：把 `bili` 放到 `~/.local/bin/`；如果这个目录不在 `PATH` 里，自动往 `~/.zshrc` 或 `~/.bashrc` 追加一行，改之前先备份；最后自己跑一遍确认能用。它不会碰 `/usr/local/bin`，不会碰 Homebrew 的目录，也不需要 `sudo`。
 
-```bash
-git clone https://github.com/Zhiyi1207/bili-sub && cd bili-sub && ./install.sh
-```
-
-**装完想删掉的话**，跑 `bili status`，最后会打印你机器上真实的路径，照抄那几行就行。通常是：
+**装完想删掉**，跑 `bili status`，最后会打印你机器上真实的路径，照抄那几行就行：
 
 ```bash
 rm -r "$HOME/.config/bili-sub"     # cookie 和输出目录设置
