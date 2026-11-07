@@ -99,7 +99,7 @@ curl -fsSL https://raw.githubusercontent.com/Zhiyi1207/bili-sub/main/install.sh 
 | macOS | `bili-sub-macos.zip` | `install.command` | 被拦一次，按下面的步骤放行 |
 | Linux | `bili-sub-linux.zip` | `install.sh`，选“运行” | 无需放行 |
 
-装完重开一个终端窗口，敲 `bili help` 验证。
+双击装完，**当前窗口会自动换成一个新的终端**，PATH 已经生效，直接敲 `bili -v` 就能用，不用自己 `source`、也不用重开窗口。
 
 **macOS 第一次会被拦**（提示“Apple 无法验证”）：
 
