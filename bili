@@ -15,7 +15,15 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 
-BASE = os.path.expanduser("~/.config/bili-sub")
+def _config_base():
+    """配置目录：优先 $XDG_CONFIG_HOME，没设置就回到 ~/.config。"""
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    if xdg and os.path.isabs(xdg):
+        return os.path.join(xdg, "bili-sub")
+    return os.path.expanduser("~/.config/bili-sub")
+
+
+BASE = _config_base()
 COOKIE_FILE = os.path.join(BASE, "cookie")
 CONFIG_FILE = os.path.join(BASE, "config.json")
 def _default_out():
@@ -476,8 +484,9 @@ def do_status(verbose=False):
     for i, p in enumerate(extra, 3):
         print(f"  {i}. rm {shell_path(p)}")
         print("       ← 指向它的快捷方式（软链），删了不影响别处")
-    for rc in (os.path.expanduser("~/.zshrc"), os.path.expanduser("~/.bashrc"),
-               os.path.expanduser("~/.profile"), os.path.expanduser("~/.config/fish/config.fish")):
+    for rc in (os.path.expanduser("~/.zshrc"), os.path.expanduser("~/.bash_profile"),
+               os.path.expanduser("~/.bashrc"), os.path.expanduser("~/.profile"),
+               os.path.expanduser("~/.config/fish/config.fish")):
         try:
             if "# >>> bili-sub >>>" not in open(rc, encoding="utf-8", errors="replace").read():
                 continue

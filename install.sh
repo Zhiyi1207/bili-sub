@@ -134,11 +134,21 @@ add_to_profile() {
 case "${SHELL:-}" in
   *fish) PROFILE="$HOME/.config/fish/config.fish" ;;
   *zsh)  PROFILE="$HOME/.zshrc" ;;
-  *)     PROFILE="$HOME/.bashrc" ;;
+  *bash)
+    # macOS 的 bash 登录终端读 .bash_profile / .profile，不读 .bashrc
+    if [ -f "$HOME/.bash_profile" ]; then
+      PROFILE="$HOME/.bash_profile"
+    elif [ -f "$HOME/.profile" ]; then
+      PROFILE="$HOME/.profile"
+    else
+      PROFILE="$HOME/.bashrc"
+    fi ;;
+  *)
+    if [ -f "$HOME/.zshrc" ]; then PROFILE="$HOME/.zshrc"
+    elif [ -f "$HOME/.bash_profile" ]; then PROFILE="$HOME/.bash_profile"
+    elif [ -f "$HOME/.profile" ]; then PROFILE="$HOME/.profile"
+    else PROFILE="$HOME/.bashrc"; fi ;;
 esac
-if [ -f "$HOME/.zshrc" ] && [ "$PROFILE" = "$HOME/.bashrc" ]; then
-  PROFILE="$HOME/.zshrc"
-fi
 
 CHANGED_RC=""
 if in_path "$BIN_DIR"; then
