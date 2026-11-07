@@ -461,6 +461,17 @@ def do_status(verbose=False):
     for i, p in enumerate(extra, 3):
         print(f"  {i}. rm {shell_path(p)}")
         print("       ← 指向它的快捷方式（软链），删了不影响别处")
+    for rc in (os.path.expanduser("~/.zshrc"), os.path.expanduser("~/.bashrc"),
+               os.path.expanduser("~/.profile"), os.path.expanduser("~/.config/fish/config.fish")):
+        try:
+            if "# >>> bili-sub >>>" not in open(rc, encoding="utf-8", errors="replace").read():
+                continue
+        except OSError:
+            continue
+        flag = "-i ''" if sys.platform == "darwin" else "-i"
+        print(f"  {3 + len(extra)}. sed {flag} '/# >>> bili-sub >>>/,/# <<< bili-sub <<</d' {shell_path(rc)}")
+        print(f"       ← 从 {rc.replace(os.path.expanduser('~'), '~')} 里删掉 PATH 配置")
+        break
     print(f"  字幕文件在 {pretty(out)} 里，那是你自己下的，删不删随你。")
     print("\n平时只写 .srt 和 .txt；设置 cookie 或改输出目录时，才会写上面第 1 项的配置。")
     return code

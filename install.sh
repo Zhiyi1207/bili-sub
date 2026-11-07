@@ -112,16 +112,13 @@ add_to_profile() {
       say "   $rc 里的配置已经是对的，跳过"
       return 0
     fi
-    cp "$rc" "$rc.bak-$(date +%Y%m%d%H%M%S)" || die "备份 $rc 失败，没敢改它"
     awk -v a="$MARK_BEGIN" -v b="$MARK_END" '$0==a{skip=1;next} $0==b{skip=0;next} !skip{print}' \
       "$rc" > "$rc.tmp.$$" && mv "$rc.tmp.$$" "$rc" || die "改不动 $rc"
     replaced=1
     say "   旧配置指向了别处，已替换成：$line"
   fi
   if [ "$replaced" = "0" ]; then
-    if [ -f "$rc" ]; then
-      cp "$rc" "$rc.bak-$(date +%Y%m%d%H%M%S)" || die "备份 $rc 失败，没敢改它"
-    else
+    if [ ! -f "$rc" ]; then
       : > "$rc" 2>/dev/null || return 1
     fi
   fi
@@ -152,11 +149,10 @@ elif [ "$MODIFY_PATH" = "1" ]; then
     *)     add_to_profile "$PROFILE" "$EXPORT_LINE" || PROFILE="" ;;
   esac
   if [ -n "$PROFILE" ] && [ -n "$CHANGED_RC" ]; then
-    say "   已把 PATH 写进：${CHANGED_RC}（改前有备份）"
+    say "   已把 PATH 写进：${CHANGED_RC}"
     if [ "${BILI_LAUNCHER:-0}" != "1" ]; then
       say "   重开终端，或者先跑一句：source \"$CHANGED_RC\""
     fi
-    say "   想撤销：删掉该文件里 $MARK_BEGIN 到 $MARK_END 之间的三行"
   fi
 else
   say "   按你的要求没动 shell 配置。要让命令生效，把这行加到 ~/.zshrc 或 ~/.bashrc："
