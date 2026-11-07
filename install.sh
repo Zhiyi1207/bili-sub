@@ -97,16 +97,27 @@ case "$BIN_DIR" in
 esac
 
 add_to_profile() {
-  # $1 = rc 文件, $2 = 要追加的行
+  # $1 = rc 文件, $2 = 要写进去的那行
   rc="$1"; line="$2"
+  replaced=0
   if [ -f "$rc" ] && grep -qF "$MARK_BEGIN" "$rc" 2>/dev/null; then
-    say "   $rc 里已经有配置，跳过（没重复写）"
-    return 0
-  fi
-  if [ -f "$rc" ]; then
+    cur="$(awk -v a="$MARK_BEGIN" -v b="$MARK_END" '$0==a{f=1;next} $0==b{f=0} f' "$rc" | head -1)"
+    if [ "$cur" = "$line" ]; then
+      say "   $rc 里的配置已经是对的，跳过"
+      return 0
+    fi
     cp "$rc" "$rc.bak-$(date +%Y%m%d%H%M%S)" || die "备份 $rc 失败，没敢改它"
-  else
-    : > "$rc" 2>/dev/null || return 1
+    awk -v a="$MARK_BEGIN" -v b="$MARK_END" '$0==a{skip=1;next} $0==b{skip=0;next} !skip{print}' \
+      "$rc" > "$rc.tmp.$$" && mv "$rc.tmp.$$" "$rc" || die "改不动 $rc"
+    replaced=1
+    say "   旧配置指向了别处，已替换成：$line"
+  fi
+  if [ "$replaced" = "0" ]; then
+    if [ -f "$rc" ]; then
+      cp "$rc" "$rc.bak-$(date +%Y%m%d%H%M%S)" || die "备份 $rc 失败，没敢改它"
+    else
+      : > "$rc" 2>/dev/null || return 1
+    fi
   fi
   {
     printf '\n%s\n' "$MARK_BEGIN"
