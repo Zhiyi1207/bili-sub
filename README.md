@@ -94,10 +94,18 @@ curl -fsSL https://raw.githubusercontent.com/Zhiyi1207/bili-sub/main/install.sh 
 
 | 你的系统 | 下载这个 | 怎么用 |
 |---|---|---|
-| macOS | `install.command` | 双击。第一次会被系统拦（Apple 无法验证），按下节步骤放行 |
+| macOS | `install.command` | 先 `chmod +x` 给执行权限，再双击；第一次会被系统拦，按下节步骤放行 |
 | Linux | `install.sh` | 双击，选“运行”；没这个选项就右键 → 属性 → 勾“允许作为程序执行” |
 
-macOS 15 之后第一次双击会弹“未打开 install.command”，照这个走：
+macOS 上有两道关，都是系统行为，不是脚本的问题：
+
+**第一道：文件没有执行权限**（浏览器下载的脚本默认是只读的）。提示“无法执行，因为你没有正确的访问权限”时，跑一句：
+
+```bash
+chmod +x ~/Downloads/install.command
+```
+
+**第二道：Apple 无法验证开发者。** 照这个走：
 
 1. 点 **“完成”**（别点“移到废纸篓”）；
 2. 打开 **系统设置 → 隐私与安全性**，往下滚到“安全性”那一块；
