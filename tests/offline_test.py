@@ -103,6 +103,28 @@ check("--delay 生效", delay, 1.5)
 check("--force 生效", force, True)
 check("链接被收下", urls, ["BV1xxxxxxxxx"])
 
+print("— 下载落盘 —")
+import contextlib
+import io
+
+out2 = tempfile.mkdtemp(dir=tmp)
+fake = {"aid": 1, "bvid": "BV1xx411c7mD", "title": "某个视频标题", "up": "某个UP主",
+        "pubdate": 0, "duration": 100, "pages": [{"page": 1, "cid": 1, "part": ""}]}
+b.video = lambda pair: fake
+b.subtitles = lambda aid, cid: [{"lan": "ai-zh", "subtitle_url": "https://example.invalid"}]
+b.body_of = lambda sub: [{"from": 0, "to": 100, "content": "一句话"}]
+with contextlib.redirect_stdout(io.StringIO()):
+    code = b.run(["-o", out2, "BV1xx411c7mD"])
+check("第一次下载成功", code, 0)
+vdir = os.path.join(out2, "某个UP主", "某个视频标题")
+check("文件夹名就是视频标题", os.path.isdir(vdir), True)
+check("两个文件都在里面", sorted(os.listdir(vdir)),
+      ["某个视频标题.ai-zh.srt", "某个视频标题.ai-zh.txt"])
+with contextlib.redirect_stdout(io.StringIO()):
+    code = b.run(["-o", out2, "BV1xx411c7mD"])
+check("第二次自动跳过", code, 0)
+check("没有重复下载", len(os.listdir(vdir)), 2)
+
 shutil.rmtree(tmp, ignore_errors=True)
 
 print(f"\n共 {count} 项，失败 {len(fails)} 项")
