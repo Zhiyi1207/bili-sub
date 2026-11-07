@@ -97,11 +97,17 @@ ver_of() {
     python3 "$1" -v </dev/null 2>/dev/null
   fi | awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^v[0-9]/) { print $i; exit } }'
 }
+sha_of() {
+  python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$1" 2>/dev/null
+}
 OLD_VER=""
+OLD_SHA=""
 if [ -x "$BIN_DIR/bili" ]; then
   OLD_VER="$(ver_of "$BIN_DIR/bili")"
+  OLD_SHA="$(sha_of "$BIN_DIR/bili")"
 fi
 NEW_VER="$(ver_of "$SRC")"
+NEW_SHA="$(sha_of "$SRC")"
 
 rm -f "$BIN_DIR/bili"
 cp "$SRC" "$BIN_DIR/bili"
@@ -109,10 +115,12 @@ chmod 755 "$BIN_DIR/bili"
 
 say "✅ 已装到：$BIN_DIR/bili"
 if [ -n "$OLD_VER" ] && [ -n "$NEW_VER" ]; then
-  if [ "$OLD_VER" = "$NEW_VER" ]; then
-    say "   检测到已装 ${OLD_VER}，同一个版本，重新覆盖了一遍"
-  else
+  if [ "$OLD_VER" != "$NEW_VER" ]; then
     say "   检测到已装 ${OLD_VER}，已升级到 ${NEW_VER}"
+  elif [ "$OLD_SHA" != "$NEW_SHA" ]; then
+    say "   检测到已装 ${OLD_VER}，同版本修正，已覆盖成最新的一版"
+  else
+    say "   检测到已装 ${OLD_VER}，同一个版本，重新覆盖了一遍"
   fi
 fi
 
