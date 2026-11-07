@@ -149,7 +149,7 @@ def usage():
   <标题>.<语言>.srt         给播放器、剪辑软件用（带时间轴）
   <标题>.<语言>.txt         给人读、给 AI 读用（带 UP 主、链接、发布时间等元数据）
 
-存放规则：<输出目录>/<UP主名>/<视频文件夹>/<标题>.<语言>.srt
+存放规则：<输出目录>/<UP主名>/<视频标题>/<标题>.<语言>.srt
 当前输出目录：{pretty(load_config()["out"])}    （用 bili setout 改）
 """, end="")
 
@@ -210,6 +210,20 @@ def parse(argv):
 def page_of(arg):
     m = re.search(r"[?&]p=(\d+)", arg)
     return m.group(1) if m else None
+
+
+# b23.tv、bili2233.cn：手机 App 分享出来的短链
+SHORT = re.compile(r"https?://(?:b23\.tv|bili2233\.cn)/[0-9A-Za-z]+", re.I)
+
+
+def resolve_url(arg):
+    """短链跟一次跳转，拿到真正的视频地址；其他链接原样返回。"""
+    m = SHORT.search(arg)
+    if not m:
+        return arg
+    req = urllib.request.Request(m.group(0), headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return r.geturl() or arg
 
 
 def targets(arg):
@@ -400,16 +414,9 @@ def clean(name, limit=60):
     return name[:limit] or "未命名"
 
 
-# 视频文件夹的名字要短，文件名仍然保留完整标题
-FOLDER_LIMIT = 16
-
-
-def video_folder(title, page=None):
-    """一个视频一个文件夹：标题截短，分P带上 P 号。"""
-    folder = clean(title, FOLDER_LIMIT)
-    if page:
-        folder += f".p{page:02d}"
-    return folder
+def video_folder(title):
+    """一个视频一个文件夹：文件夹名就是视频标题。"""
+    return clean(title)
 
 
 def save_pair(items):
@@ -603,7 +610,7 @@ def run(argv):
     seen = set()
     urls = [u for u in urls if not (u in seen or seen.add(u))]
     if not cookie():
-        print("⚠️  还没设置 cookie，先按未登录状态试（部分视频仍能拿到 AI 字幕）")
+        print("⚠️  还没登录，先按未登录状态试（要登录就跑 bili setcookie）")
 
     ok = fail = skip = 0
     total = len(urls)
@@ -611,9 +618,18 @@ def run(argv):
         if n > 1 and delay > 0:
             time.sleep(delay)          # 批量时给 B 站留点余地，别连着打
         print(f"── [{n}/{total}] {u}" if total > 1 else f"── {u}")
-        pair = targets(u)
+        try:
+            real = resolve_url(u)
+        except Exception as e:
+            print(f"   ✗ 这个短链接打不开：{e}")
+            fail += 1
+            continue
+        pair = targets(real)
         if not pair:
-            print("   ✗ 认不出这是哪个视频（要 BV 号、av 号或完整网址）")
+            if real != u:
+                print("   ✗ 这个短链接没指向视频页")
+            else:
+                print("   ✗ 认不出这是哪个视频（要 BV 号、av 号或视频页网址；番剧、直播不支持）")
             fail += 1
             continue
         try:
@@ -622,7 +638,7 @@ def run(argv):
             print(f"   ✗ 拿不到视频信息：{e}")
             fail += 1
             continue
-        want = psel if psel is not None else page_of(u)
+        want = psel if psel is not None else page_of(real)
         pages = v["pages"]
         if want and want != "all":
             pages = [p for p in pages if str(p.get("page")) == str(want)]
@@ -657,7 +673,7 @@ def run(argv):
             if multi:
                 url += f"?p={p['page']}"
             title = f"{v['title']} P{p['page']} {p.get('part') or ''}".strip() if multi else v["title"]
-            base = os.path.join(out, clean(v["up"]), video_folder(v["title"], p["page"] if multi else None), f"{name}.{lan}")
+            base = os.path.join(out, clean(v["up"]), video_folder(v["title"]), f"{name}.{lan}")
             state = None if force else existing(base, url)
             if state == "same":
                 print(f"   ↷ {label}已经下过了，跳过（想重下加 --force）")
