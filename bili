@@ -45,7 +45,7 @@ _last_req = 0.0
 RISK_CODES = {-352, -412, -799}   # B 站风控相关的返回码
 BLOCK_WAIT = 20             # 被风控后第一次等多久再试，之后翻倍
 # 发版时改这一行；不要在运行时按当天日期算，否则装的是哪一版就说不清了
-VERSION = "v20261107"
+VERSION = "v20261114"
 
 
 def pretty(path):
@@ -174,7 +174,7 @@ def usage():
   bili status                看登录状态、版本号、字幕存哪儿、怎么卸载
   bili setcookie             设置或覆盖登录用的 cookie
   bili help                  显示这份帮助
-  bili -v, --version         看版本号（日期版本，例如 v20261107）
+  bili -v, --version         看版本号（日期版本，例如 v20261114）
 
 每个视频生成一个文本文件：
   <标题>.txt                给人读、给 AI 读用（带 UP 主、链接、发布时间、字幕类型）
@@ -538,7 +538,7 @@ def do_setcookie():
         print(f"⚠️  已设置过 cookie（{pretty(COOKIE_FILE)}），本次直接覆盖。")
     print("""怎么拿 cookie（Chrome，电脑版）：
   1. 打开 bilibili.com，确认右上角是你自己的头像
-  2. 按 Cmd + Option + I 打开开发者工具（Mac 上 F12 是音量键）
+  2. 按 Cmd + Option + I（macOS）或 F12（Linux）打开开发者工具
   3. 顶部选「应用 / Application」→ 左侧「Cookie」→
      https://www.bilibili.com → 找到 SESSDATA → 双击 Value 全选复制
   4. 粘到下面，回车结束（只粘值也行，会自动补上 SESSDATA=）""")
@@ -581,7 +581,7 @@ def do_setout(argv):
     if not os.path.isabs(path):
         print(f"❌ 这不是绝对路径：{raw}")
         print("   要写完整的、从根目录开始的路径，并用双引号括起来，例如：")
-        print('   bili setout "/Users/你的名字/Movies/字幕"')
+        print('   bili setout "$HOME/Movies/字幕"')
         return 1
     path = os.path.normpath(path)
     try:
