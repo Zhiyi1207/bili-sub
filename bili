@@ -148,7 +148,10 @@ def http_json(url, retries=RETRY):
             if attempt < retries:
                 # 风控了就多等一会儿再试，普通网络错误只歇一下
                 wait = BLOCK_WAIT * (attempt + 1) if blocked else 0.8
-                time.sleep(wait + random.uniform(0, wait * 0.25))
+                wait += random.uniform(0, wait * 0.25)
+                if blocked:
+                    print(f"   ⏳ 被风控了（{err}），{wait:.0f} 秒后重试", flush=True)
+                time.sleep(wait)
     if isinstance(err, Blocked):
         raise RuntimeError(f"被 B 站风控拦住了（{err}）。歇十几分钟再跑，或者把 --delay 调大")
     raise RuntimeError(f"请求失败（重试 {retries} 次）：{err}")

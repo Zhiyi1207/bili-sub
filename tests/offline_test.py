@@ -5,9 +5,11 @@
 跑法：python3 tests/offline_test.py
 """
 
-import json
+import contextlib
 import importlib.machinery
 import importlib.util
+import io
+import json
 import os
 import shutil
 import sys
@@ -90,7 +92,8 @@ b.BLOCK_WAIT = 0
 b.RETRY = 1
 b.urllib.request.urlopen = lambda req, timeout=0: _Resp({"code": -352, "message": "风控"})
 try:
-    b.http_json("https://api.bilibili.com/x/test")
+    with contextlib.redirect_stdout(io.StringIO()):
+        b.http_json("https://api.bilibili.com/x/test")
     got = "没报错"
 except RuntimeError as e:
     got = str(e)
@@ -134,9 +137,6 @@ check("--force 生效", force, True)
 check("链接被收下", urls, ["BV1xxxxxxxxx"])
 
 print("— 下载落盘 —")
-import contextlib
-import io
-
 out2 = tempfile.mkdtemp(dir=tmp)
 fake = {"aid": 1, "bvid": "BV1xx411c7mD", "title": "某个视频标题", "up": "某个UP主",
         "pubdate": 0, "duration": 100, "pages": [{"page": 1, "cid": 1, "part": ""}]}
