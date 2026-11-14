@@ -7,6 +7,7 @@
 
 import json
 import os
+import random
 import re
 import shutil
 import sys
@@ -39,6 +40,10 @@ DEFAULT_OUT = _default_out()
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 RETRY = 2
+REQ_GAP = 0.45              # 同一个视频内部，两次请求之间至少隔这么久
+_last_req = 0.0
+RISK_CODES = {-352, -412, -799}   # B 站风控相关的返回码
+BLOCK_WAIT = 20             # 被风控后第一次等多久再试，之后翻倍
 # 发版时改这一行；不要在运行时按当天日期算，否则装的是哪一版就说不清了
 VERSION = "v20261107"
 
@@ -107,6 +112,19 @@ def save_config(cfg):
 
 # ---------- 网络 ----------
 
+class Blocked(Exception):
+    """被 B 站风控拦了（-352、-412 之类）。"""
+
+
+def _pace():
+    """所有请求共用的最小间隔，再加一点随机，别让节奏太机械。"""
+    global _last_req
+    wait = REQ_GAP + random.uniform(0, 0.35) - (time.time() - _last_req)
+    if wait > 0:
+        time.sleep(wait)
+    _last_req = time.time()
+
+
 def http_json(url, retries=RETRY):
     hdrs = {"User-Agent": UA, "Referer": "https://www.bilibili.com"}
     ck = cookie()
@@ -116,13 +134,23 @@ def http_json(url, retries=RETRY):
     err = None
     for attempt in range(retries + 1):
         try:
+            _pace()
             req = urllib.request.Request(url, headers=hdrs)
             with urllib.request.urlopen(req, timeout=20) as r:
-                return json.loads(r.read().decode("utf-8", "replace"))
+                data = json.loads(r.read().decode("utf-8", "replace"))
+            code = data.get("code")
+            if code in RISK_CODES:
+                raise Blocked(f"接口返回 {code}")
+            return data
         except Exception as e:
             err = e
+            blocked = isinstance(e, Blocked) or any(s in str(e) for s in ("412", "403"))
             if attempt < retries:
-                time.sleep(0.8)
+                # 风控了就多等一会儿再试，普通网络错误只歇一下
+                wait = BLOCK_WAIT * (attempt + 1) if blocked else 0.8
+                time.sleep(wait + random.uniform(0, wait * 0.25))
+    if isinstance(err, Blocked):
+        raise RuntimeError(f"被 B 站风控拦住了（{err}）。歇十几分钟再跑，或者把 --delay 调大")
     raise RuntimeError(f"请求失败（重试 {retries} 次）：{err}")
 
 
@@ -138,18 +166,18 @@ def usage():
   bili -p <N> <链接>         只下第 N 个分P（不写就下全部分P）
   bili -o "<目录>" <链接>    这次下载换个地方存，不改永久设置
   bili --force <链接>        已下载过的也重新下一遍（默认是跳过）
-  bili --delay <秒> <链接>   批量时相邻两个视频之间等几秒，默认 0.4
+  bili --delay <秒> <链接>   批量时相邻两个视频之间等几秒，默认 1.0（会再加随机间隔）
   bili setout "<绝对路径>"   永久设置字幕存哪儿（要绝对路径，用双引号括起来）
   bili status                看登录状态、版本号、字幕存哪儿、怎么卸载
   bili setcookie             设置或覆盖登录用的 cookie
   bili help                  显示这份帮助
   bili -v, --version         看版本号（日期版本，例如 v20261107）
 
-每个视频会生成两个文件：
-  <标题>.<语言>.srt         给播放器、剪辑软件用（带时间轴）
-  <标题>.<语言>.txt         给人读、给 AI 读用（带 UP 主、链接、发布时间等元数据）
+每个视频生成一个文本文件：
+  <标题>.txt                给人读、给 AI 读用（带 UP 主、链接、发布时间、字幕类型）
+  文件名取标题前 10 个字，超出的用省略号
 
-存放规则：<输出目录>/<UP主名>/<视频标题>/<标题>.<语言>.srt
+存放规则：<输出目录>/<UP主名>/<标题>.txt
 当前输出目录：{pretty(load_config()["out"])}    （用 bili setout 改）
 """, end="")
 
@@ -157,7 +185,7 @@ def usage():
 # ---------- 参数 ----------
 
 def parse(argv):
-    urls, listfiles, out, psel, force, delay = [], [], None, None, False, 0.4
+    urls, listfiles, out, psel, force, delay = [], [], None, None, False, 1.0
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -289,14 +317,6 @@ def body_of(sub):
 
 # ---------- 时间与校验 ----------
 
-def ts(t):
-    ms = int(round(float(t) * 1000))
-    h, ms = divmod(ms, 3600000)
-    m, ms = divmod(ms, 60000)
-    s, ms = divmod(ms, 1000)
-    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
-
-
 def proc_ts(t):
     t = int(float(t))
     return f"{t // 60:02d}:{t % 60:02d}"
@@ -329,14 +349,18 @@ def check(body, duration):
     return None, None
 
 
-# ---------- 生成两种格式 ----------
+# ---------- 文件名 ----------
 
-def to_srt(body):
-    blocks = []
-    for i, x in enumerate(body, 1):
-        text = str(x.get("content", "")).replace("\r", " ").strip()
-        blocks.append(f"{i}\n{ts(x.get('from', 0))} --> {ts(x.get('to', 0))}\n{text}\n")
-    return "\n".join(blocks)
+# 文件名最多留标题前 10 个字，超出的用省略号
+NAME_LIMIT = 10
+
+
+def short_name(title):
+    """文件名：取标题前 10 个字，超出的用省略号收尾。"""
+    name = clean(title, 500)
+    if len(name) > NAME_LIMIT:
+        return name[:NAME_LIMIT] + "…"
+    return name
 
 
 def _join(a, b):
@@ -382,21 +406,17 @@ def to_txt(body, meta):
     return "\n".join(head) + "\n\n".join(paras) + "\n"
 
 
-def existing(base, url):
+def existing(path, url):
     """看看这个视频是不是已经下过了。
 
-    same    = 文件都在，且 .txt 里记的链接就是它
-    other   = 同名文件存在，但属于别的视频
-    partial = 只有 .srt，缺 .txt
+    same    = .txt 在，且里面记的链接就是它
+    other   = 同名 .txt 属于别的视频
     None    = 没下过
     """
-    srt, txt = base + ".srt", base + ".txt"
-    if not os.path.exists(srt):
+    if not os.path.exists(path):
         return None
-    if not os.path.exists(txt):
-        return "partial"
     try:
-        with open(txt, encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             head = f.read(800)
     except OSError:
         return None
@@ -414,30 +434,20 @@ def clean(name, limit=60):
     return name[:limit] or "未命名"
 
 
-def video_folder(title):
-    """一个视频一个文件夹：文件夹名就是视频标题。"""
-    return clean(title)
-
-
-def save_pair(items):
-    """把 (路径, 内容) 全写成临时文件，再一起改名：要么两个都在，要么都不留。"""
-    tmps = []
+def save_text(path, text):
+    """先写临时文件再改名：要么写完整，要么什么都不留。"""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".part"
     try:
-        for path, text in items:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            tmp = path + ".part"
-            with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-                f.write(text)
-            tmps.append((tmp, path))
-        for tmp, path in tmps:
-            os.replace(tmp, path)
+        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+        os.replace(tmp, path)
     finally:
-        for tmp, _ in tmps:
-            if os.path.exists(tmp):
-                try:
-                    os.remove(tmp)
-                except OSError:
-                    pass
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
 
 
 # ---------- 子命令 ----------
@@ -475,8 +485,8 @@ def do_status(verbose=False):
     else:
         print("命令入口：（没在 PATH 里找到 bili，重开终端或 source 一下 shell 配置）\n")
     print(f"输出目录：{pretty(out)}")
-    print(f"          所有字幕都进这里，每个 UP 主一个子文件夹、每个视频再一个，例如 {pretty(out)}/<UP主名>/<视频标题>/")
-    print(f"          每个视频两个文件：<标题>.<语言>.srt 和 <标题>.<语言>.txt\n")
+    print(f"          所有字幕都进这里，每个 UP 主一个子文件夹，例如 {pretty(out)}/<UP主名>/")
+    print(f"          每个视频一个 .txt：<标题>.txt，标题取前 10 个字\n")
 
     print("卸载：")
     print(f"  1. rm -r {shell_path(BASE)}")
@@ -516,7 +526,7 @@ def do_status(verbose=False):
         print(f"       ← 从 {rc.replace(os.path.expanduser('~'), '~')} 里删掉 PATH 配置")
         break
     print(f"  字幕文件在 {pretty(out)} 里，那是你自己下的，删不删随你。")
-    print("\n平时只写 .srt 和 .txt；设置 cookie 或改输出目录时，才会写上面第 1 项的配置。")
+    print("\n平时只写 .txt；设置 cookie 或改输出目录时，才会写上面第 1 项的配置。")
     return code
 
 
@@ -582,7 +592,7 @@ def do_setout(argv):
     cfg["out"] = path
     save_config(cfg)
     print(f"✅ 输出目录已设为：{pretty(path)}")
-    print(f"   以后的字幕存到：{pretty(path)}/<UP主>/<视频标题>/<标题>.<语言>.srt")
+    print(f"   以后的字幕存到：{pretty(path)}/<UP主>/<标题>.txt")
     return 0
 
 
@@ -616,7 +626,8 @@ def run(argv):
     total = len(urls)
     for n, u in enumerate(urls, 1):
         if n > 1 and delay > 0:
-            time.sleep(delay)          # 批量时给 B 站留点余地，别连着打
+            # 固定间隔太机械，抖一下；风控不认时间表
+            time.sleep(delay * random.uniform(0.85, 1.25))
         print(f"── [{n}/{total}] {u}" if total > 1 else f"── {u}")
         try:
             real = resolve_url(u)
@@ -649,7 +660,7 @@ def run(argv):
         multi = len(v["pages"]) > 1
         for p in pages:
             label = f"P{p['page']} {p.get('part') or ''} " if multi else ""
-            name = clean(v["title"])
+            name = short_name(v["title"])
             if multi:
                 name += f".p{p['page']:02d}"
             try:
@@ -673,15 +684,16 @@ def run(argv):
             if multi:
                 url += f"?p={p['page']}"
             title = f"{v['title']} P{p['page']} {p.get('part') or ''}".strip() if multi else v["title"]
-            base = os.path.join(out, clean(v["up"]), video_folder(v["title"]), f"{name}.{lan}")
-            state = None if force else existing(base, url)
+            base = os.path.join(out, clean(v["up"]), name)
+            path = base + ".txt"
+            state = None if force else existing(path, url)
             if state == "same":
                 print(f"   ↷ {label}已经下过了，跳过（想重下加 --force）")
                 skip += 1
                 continue
             if state == "other":
-                base += f".{v['bvid'] or v['aid']}"
-                print(f"   ⚠️  同名文件属于别的视频，这次另存为 {os.path.basename(base)}.*")
+                path = base + f".{v['bvid'] or v['aid']}.txt"
+                print(f"   ⚠️  同名文件属于别的视频，这次另存为 {os.path.basename(path)}")
 
             try:
                 body = body_of(sub)
@@ -707,12 +719,12 @@ def run(argv):
                 "lan": lan,
             }
             try:
-                save_pair([(base + ".srt", to_srt(body)), (base + ".txt", to_txt(body, meta))])
+                save_text(path, to_txt(body, meta))
             except OSError as e:
                 print(f"   ✗ {label}写文件失败：{e}")
                 fail += 1
                 continue
-            print(f"   ✓ {label}{kind} {len(body)} 条 → {pretty(base)}.srt / .txt")
+            print(f"   ✓ {label}{kind} {len(body)} 条 → {pretty(path)}")
             ok += 1
 
     print(f"==== 完成：新下 {ok} 个，跳过 {skip} 个，失败 {fail} 个 ====")
