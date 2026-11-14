@@ -5,6 +5,7 @@
 跑法：python3 tests/offline_test.py
 """
 
+import json
 import importlib.machinery
 import importlib.util
 import os
@@ -55,13 +56,6 @@ check("差 15 秒 → warn", b.check([{"from": 0, "to": 85, "content": "a"}], 10
 check("覆盖到结尾 → 通过", b.check([{"from": 0, "to": 99, "content": "a"}], 100)[0], None)
 check("没有时长信息 → 不判", b.check(body, 0)[0], None)
 
-print("— SRT 格式 —")
-srt = b.to_srt([{"from": 0, "to": 1.5, "content": "第一句"},
-                {"from": 1.5, "to": 3.0, "content": "第二句"}])
-check("两条字幕的序号", srt.count("-->"), 2)
-check("时间戳格式", "00:00:01,500 --> 00:00:03,000" in srt, True)
-check("正文在里面", "第二句" in srt, True)
-
 print("— TXT 格式 —")
 meta = {"title": "标题", "up": "某UP", "url": "https://www.bilibili.com/video/BV1xxx",
         "pub": "2026-11-06 09:30", "dur": "01:00", "kind": "AI 字幕", "lan": "ai-zh"}
@@ -73,23 +67,59 @@ check("带链接", "- 链接：https://www.bilibili.com/video/BV1xxx" in txt, Tr
 check("带发布时间", "- 发布时间：2026-11-06 09:30" in txt, True)
 check("正文分段（停顿处断开）", txt.count("\n\n") >= 3, True)
 
+print("— 风控处理 —")
+
+
+class _Resp:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def read(self):
+        return json.dumps(self.payload).encode()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+_real_urlopen = b.urllib.request.urlopen
+b.REQ_GAP = 0
+b.BLOCK_WAIT = 0
+b.RETRY = 1
+b.urllib.request.urlopen = lambda req, timeout=0: _Resp({"code": -352, "message": "风控"})
+try:
+    b.http_json("https://api.bilibili.com/x/test")
+    got = "没报错"
+except RuntimeError as e:
+    got = str(e)
+check("风控会被拦下并说清原因", "风控" in got, True)
+
+b.RETRY = 0
+b.urllib.request.urlopen = lambda req, timeout=0: _Resp({"code": 0, "data": {"ok": 1}})
+check("正常返回原样给出", b.http_json("https://api.bilibili.com/x/test"), {"code": 0, "data": {"ok": 1}})
+b.urllib.request.urlopen = _real_urlopen
+
 print("— 已下载判定 —")
 tmp = tempfile.mkdtemp()
-base = os.path.join(tmp, "up", "标题.ai-zh")
-check("没有文件 → None", b.existing(base, "https://x"), None)
-os.makedirs(os.path.dirname(base), exist_ok=True)
-open(base + ".srt", "w").close()
-check("只有 srt → partial", b.existing(base, "https://x"), "partial")
-open(base + ".txt", "w", encoding="utf-8").write("- 链接：https://x\n")
-check("srt+txt 链接一致 → same", b.existing(base, "https://x"), "same")
-check("srt+txt 链接不一致 → other", b.existing(base, "https://y"), "other")
+path = os.path.join(tmp, "up", "标题.txt")
+check("没有文件 → None", b.existing(path, "https://x"), None)
+os.makedirs(os.path.dirname(path), exist_ok=True)
+open(path, "w", encoding="utf-8").write("- 链接：https://x\n")
+check("链接一致 → same", b.existing(path, "https://x"), "same")
+check("链接不一致 → other", b.existing(path, "https://y"), "other")
+open(os.path.join(tmp, "up", "旧的.srt"), "w").close()
+check("老 srt 不再参与判断", b.existing(os.path.join(tmp, "up", "旧的.txt"), "https://x"), None)
 
 print("— 文件名与路径 —")
 check("非法字符被替换", b.clean('a/b:c*d?"e'), "a_b_c_d__e")
 check("超长被截断", len(b.clean("字" * 200)), 60)
-check("文件夹名就是标题（超长同样截到 60）", len(b.video_folder("字" * 100)), 60)
-check("短标题原样用", b.video_folder("标题"), "标题")
-check("文件夹名就是标题", b.video_folder("某标题"), b.clean("某标题"))
+check("短标题原样用", b.short_name("标题"), "标题")
+check("刚好 10 个字不截", b.short_name("一二三四五六七八九十"), "一二三四五六七八九十")
+check("超过 10 个字加省略号", b.short_name("一二三四五六七八九十十一"), "一二三四五六七八九十…")
+check("长标题也只留 11 个字符", len(b.short_name("字" * 100)), 11)
+check("文件名里的非法字符照样处理", b.short_name('a/b:c'), "a_b_c")
 check("普通链接不做跳转", b.resolve_url("https://www.bilibili.com/video/BV1xx411c7mD"),
       "https://www.bilibili.com/video/BV1xx411c7mD")
 check("链接里的 p 认得出", b.page_of("https://www.bilibili.com/video/BV1xx411c7mD?p=3"), "3")
@@ -116,14 +146,39 @@ b.body_of = lambda sub: [{"from": 0, "to": 100, "content": "一句话"}]
 with contextlib.redirect_stdout(io.StringIO()):
     code = b.run(["-o", out2, "BV1xx411c7mD"])
 check("第一次下载成功", code, 0)
-vdir = os.path.join(out2, "某个UP主", "某个视频标题")
-check("文件夹名就是视频标题", os.path.isdir(vdir), True)
-check("两个文件都在里面", sorted(os.listdir(vdir)),
-      ["某个视频标题.ai-zh.srt", "某个视频标题.ai-zh.txt"])
+vdir = os.path.join(out2, "某个UP主")
+check("不再有视频文件夹", os.path.isdir(os.path.join(vdir, "某个视频标题")), False)
+check("只有一个 txt", sorted(os.listdir(vdir)), ["某个视频标题.txt"])
 with contextlib.redirect_stdout(io.StringIO()):
     code = b.run(["-o", out2, "BV1xx411c7mD"])
 check("第二次自动跳过", code, 0)
-check("没有重复下载", len(os.listdir(vdir)), 2)
+check("没有重复下载", len(os.listdir(vdir)), 1)
+
+out3 = tempfile.mkdtemp(dir=tmp)
+b.video = lambda pair: dict(fake, title="一二三四五六七八九十甲乙")
+with contextlib.redirect_stdout(io.StringIO()):
+    b.run(["-o", out3, "BV1xx411c7mD"])
+check("长标题只留前 10 字 + 省略号", os.listdir(os.path.join(out3, "某个UP主")),
+      ["一二三四五六七八九十….txt"])
+
+out4 = tempfile.mkdtemp(dir=tmp)
+b.video = lambda pair: dict(fake, title="多集视频",
+                            pages=[{"page": 1, "cid": 1, "part": "一"},
+                                   {"page": 2, "cid": 2, "part": "二"}])
+with contextlib.redirect_stdout(io.StringIO()):
+    b.run(["-o", out4, "BV1xx411c7mD"])
+check("分P 文件名带 P 号", sorted(os.listdir(os.path.join(out4, "某个UP主"))),
+      ["多集视频.p01.txt", "多集视频.p02.txt"])
+
+out5 = tempfile.mkdtemp(dir=tmp)
+b.video = lambda pair: dict(fake)
+with contextlib.redirect_stdout(io.StringIO()):
+    b.run(["-o", out5, "BV1xx411c7mD"])
+b.video = lambda pair: dict(fake, bvid="BV1yy411c7mD")
+with contextlib.redirect_stdout(io.StringIO()):
+    b.run(["-o", out5, "BV1yy411c7mD"])
+check("同名不同视频另存", sorted(os.listdir(os.path.join(out5, "某个UP主"))),
+      ["某个视频标题.BV1yy411c7mD.txt", "某个视频标题.txt"])
 
 shutil.rmtree(tmp, ignore_errors=True)
 
