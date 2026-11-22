@@ -180,6 +180,16 @@ with contextlib.redirect_stdout(io.StringIO()):
 check("同名不同视频另存", sorted(os.listdir(os.path.join(out5, "某个UP主"))),
       ["某个视频标题.BV1yy411c7mD.txt", "某个视频标题.txt"])
 
+out6 = tempfile.mkdtemp(dir=tmp)
+b.subtitles = lambda aid, cid: []
+b.cookie = lambda: "SESSDATA=x"
+b.login_state = lambda: False
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    code = b.run(["-o", out6, "BV1xx411c7mD"])
+check("cookie 失效时说清是登录问题", "SESSDATA 已失效" in buf.getvalue(), True)
+check("cookie 失效时算失败", code, 1)
+
 shutil.rmtree(tmp, ignore_errors=True)
 
 print(f"\n共 {count} 项，失败 {len(fails)} 项")

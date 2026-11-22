@@ -45,7 +45,7 @@ _last_req = 0.0
 RISK_CODES = {-352, -412, -799}   # B 站风控相关的返回码
 BLOCK_WAIT = 20             # 被风控后第一次等多久再试，之后翻倍
 # 发版时改这一行；不要在运行时按当天日期算，否则装的是哪一版就说不清了
-VERSION = "v20261114"
+VERSION = "v20261122"
 
 
 def pretty(path):
@@ -123,6 +123,28 @@ def _pace():
     if wait > 0:
         time.sleep(wait)
     _last_req = time.time()
+
+
+_login_state = "unset"
+
+
+def login_state():
+    """True=已登录，False=没登录或 SESSDATA 失效，None=连不上判断不了。
+
+    只在需要解释“为什么没字幕”时调用一次，结果缓存，别每取一个字幕都问一遍。
+    """
+    global _login_state
+    if _login_state != "unset":
+        return _login_state
+    if not cookie():
+        _login_state = False
+        return _login_state
+    try:
+        d = http_json("https://api.bilibili.com/x/web-interface/nav")
+        _login_state = bool((d.get("data") or {}).get("isLogin"))
+    except Exception:
+        _login_state = None
+    return _login_state
 
 
 def http_json(url, retries=RETRY):
@@ -624,6 +646,8 @@ def run(argv):
     urls = [u for u in urls if not (u in seen or seen.add(u))]
     if not cookie():
         print("⚠️  还没登录，先按未登录状态试（要登录就跑 bili setcookie）")
+    elif len(urls) > 1 and login_state() is False:
+        print("⚠️  cookie 已失效，字幕接口不会返回列表；先跑 bili setcookie 再下")
 
     ok = fail = skip = 0
     total = len(urls)
@@ -674,10 +698,15 @@ def run(argv):
                 continue
             sub = pick(subs)
             if not sub:
-                if cookie():
-                    print(f"   ✗ {label}这个视频没有字幕（原字幕、AI 字幕都没有）")
-                else:
+                state = login_state()
+                if not cookie():
                     print(f"   ✗ {label}没取到字幕。没登录时不少视频看不到字幕，先 bili setcookie 再试")
+                elif state is False:
+                    print(f"   ✗ {label}取不到字幕：SESSDATA 已失效，先 bili setcookie 再试")
+                elif state is None:
+                    print(f"   ✗ {label}没取到字幕，也连不上 B 站确认登录状态（可能是网络问题）")
+                else:
+                    print(f"   ✗ {label}这个视频没有字幕（原字幕、AI 字幕都没有）")
                 fail += 1
                 continue
             lan = sub.get("lan") or "unknown"
